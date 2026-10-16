@@ -48,3 +48,6 @@ Flow: verify the platform token (signature, issuer, audience `courier-api`; `azp
 - The platform token is used once and never stored. The platform company id is remembered in `localStorage` (`occpl.sso.company`) so the login page can offer a **Sign in with OCCPL** link on browsers that have used it.
 - Keycloak client `courier-web` must be a public client with PKCE (S256), redirect URI `https://<courier host>/sso`, web origin `https://<courier host>`, and the `courier-api` audience scope.
 - Product configuration on the platform: launch path `/sso?company={companyId}`.
+
+## First Super Admin (fresh database)
+A new database has no users. Set `BOOTSTRAP_SUPER_ADMIN_EMAIL` and `BOOTSTRAP_SUPER_ADMIN_PASSWORD` (a password that satisfies the password policy), start the app once, then remove both. `SuperAdminBootstrap` creates the `SUPER_ADMIN` (ACTIVE, email verified) through `UserProvisioningService.provisionSuperAdmin`, anchored to the platform company, and does nothing when that email already belongs to a platform operator, so leaving it configured is harmless. A rejected password is logged (never the password) and the app still starts. Sign in with that account, then create the subscription plan named in `OCCPL_PLATFORM_DEFAULT_PLAN_CODE` (Subscription Plans).
