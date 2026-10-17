@@ -124,6 +124,11 @@ server:
 
 app:
   version: 0.1.0
+  bootstrap:
+    # First start only: creates a SUPER_ADMIN when this email is not yet a platform operator. Set both, start once,
+    # then remove them. The password must satisfy the normal password policy. No default on purpose.
+    super-admin-email: ${BOOTSTRAP_SUPER_ADMIN_EMAIL:}
+    super-admin-password: ${BOOTSTRAP_SUPER_ADMIN_PASSWORD:}
   jwt:
     # No default: the app must not be able to start with a secret from the repo.
     secret: ${JWT_SECRET}
