@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-16 — First Super Admin from two settings (`BOOTSTRAP_SUPER_ADMIN_EMAIL` / `_PASSWORD`)
+
+`SuperAdminBootstrap` creates the first `SUPER_ADMIN` on a fresh database at start-up when those settings are present and the email is not yet a platform operator.
+No SQL, no password in chat or code; remove the settings afterwards. Test: `SuperAdminBootstrapTest` (5).
+
+---
+
 ## 2026-10-16 — "Sign in with OCCPL" backend (single sign-on, off by default)
 
 New `POST /api/v1/auth/platform/exchange` turns a platform (Keycloak) access token into a normal courier session, after asking the platform
