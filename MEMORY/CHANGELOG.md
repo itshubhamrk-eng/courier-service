@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-19 — Release flow: `CI` on pull requests, `Release` on main (replaces the `Image` workflow)
+
+- `.github/workflows/ci.yml`: unit tests (Java 21) and an image build (not pushed) on every pull request.
+- `.github/workflows/release.yml`: on a merge to `main` it runs the unit tests, publishes `ghcr.io/<owner>/courier-service:<sha>` and `:dev`, deploys over SSH (`bin/courier-deploy.sh backend <sha>` on the server, which waits for the container to be healthy, restarts the web container and rolls back on failure) and smoke-tests the public URL (provisioning endpoint 401, platform sign-in configuration 200, login with an unknown account 401). *Run workflow* with a full SHA deploys an existing image again (rollback); nothing is built then.
+- Needs, in the `dev` environment: secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`, variables `VPS_HOST` and `COURIER_URL`. The key can run only `courier-deploy.sh`. Setup: OCCPL `infra/vps/RUNBOOK.md`, section 9, step 14.
+- The old `Image` workflow (publish only, no tests, no deploy) is removed.
+
+---
+
 ## 2026-10-19 — Sign in with OCCPL: look the person up inside the company being signed in to
 
 - On the dev server the first platform sign-in failed with `CompanyIsolationException: Cross-company update blocked for User`: the person was already a user of a *different* test company (same email), the email lookup returned that account, and marking it verified was refused by the isolation guard (correctly).

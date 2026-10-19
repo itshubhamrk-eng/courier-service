@@ -1,0 +1,131 @@
+# Release of the courier API to the dev server: test, build and publish the image (tags: the commit SHA and "dev"),
+# deploy it, smoke-test it and roll back when it does not become healthy.
+#
+# Run by hand with a full commit SHA in "release" to deploy (or roll back to) an image that already exists; nothing is
+# built or tested then. One-time setup of the server key, secrets and variables: OCCPL repository, infra/vps/RUNBOOK.md,
+# section 9, step 14.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Full commit SHA to deploy again (rollback). Leave empty to test, build and deploy this branch.
+        required: false
+        default: ""
+
+concurrency:
+  group: release
+  cancel-in-progress: false # a running deploy is never cut off by a newer merge; the newer one waits
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - id: plan
+        env:
+          INPUT: ${{ inputs.release }}
+        run: |
+          if [ -n "$INPUT" ]; then
+            [[ "$INPUT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::release must be a full 40-character commit SHA"; exit 1; }
+            echo "release=$INPUT" >> "$GITHUB_OUTPUT"; echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=$GITHUB_SHA" >> "$GITHUB_OUTPUT"; echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: Unit tests (Java 21)
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn -B -ntp test
+
+  image:
+    name: Publish image
+    needs: [plan, test]
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/courier-service:${{ needs.plan.outputs.release }}
+            ghcr.io/${{ github.repository_owner }}/courier-service:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to dev
+    needs: [plan, image]
+    # Runs after a successful image job, or alone for a rollback (the image job is skipped then).
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.image.result == 'success' || needs.image.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: dev
+    steps:
+      - name: Settings present
+        env:
+          HOST: ${{ vars.VPS_HOST }}
+          URL: ${{ vars.COURIER_URL }}
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          for name in HOST URL KEY KNOWN_HOSTS; do
+            [ -n "${!name}" ] || { echo "::error::Missing setting for $name; see OCCPL infra/vps/RUNBOOK.md, section 9, step 14"; exit 1; }
+          done
+      - name: SSH access
+        env:
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy (the server rolls back by itself when the container is not healthy)
+        env:
+          HOST: ${{ vars.VPS_HOST }}
+          RELEASE: ${{ needs.plan.outputs.release }}
+        run: ssh -i ~/.ssh/id_deploy -o ConnectTimeout=20 "occpl@$HOST" "backend $RELEASE"
+      - name: Smoke test
+        env:
+          URL: ${{ vars.COURIER_URL }}
+        run: |
+          fail() { echo "SMOKE TEST FAILED: $*" >&2; exit 1; }
+          code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1"; }
+          # The platform's provisioning endpoint exists and wants a token.
+          [ "$(code "$URL/provisioning/v1/tenants/smoke")" = 401 ] || fail "provisioning endpoint is not answering 401"
+          # The public sign-in configuration is served (Sign in with OCCPL is on).
+          [ "$(code "$URL/api/v1/auth/platform/config")" = 200 ] || fail "platform sign-in configuration is not answering 200"
+          # A login with an unknown account reaches the application and is refused there (not a CORS or proxy error).
+          status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST "$URL/api/v1/auth/login" \
+            -H "Origin: $URL" -H 'Content-Type: application/json' -d '{"email":"smoke@example.invalid","password":"not-a-real-password-1"}')
+          [ "$status" = 401 ] || fail "sign-in request answered $status, expected 401"
+          echo "smoke test passed"
