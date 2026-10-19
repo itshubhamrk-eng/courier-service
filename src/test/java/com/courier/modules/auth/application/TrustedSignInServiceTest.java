@@ -84,7 +84,7 @@ class TrustedSignInServiceTest {
     @Test
     void signsInAnExistingActiveUserWithoutCreatingOne() {
         User existing = user(UserStatus.ACTIVE, Role.OPERATOR);
-        when(userRepository.findByEmail("asha@acme.test")).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmailWithinCompany("asha@acme.test", companyId)).thenReturn(Optional.of(existing));
 
         AuthService.AuthResult result = service.signIn(command());
 
@@ -96,7 +96,7 @@ class TrustedSignInServiceTest {
     @Test
     void createsTheUserOnFirstSignInWithTheGivenRoles() {
         User created = user(UserStatus.ACTIVE, Role.VIEWER);
-        when(userRepository.findByEmail("asha@acme.test")).thenReturn(Optional.empty(), Optional.of(created));
+        when(userRepository.findByEmailWithinCompany("asha@acme.test", companyId)).thenReturn(Optional.empty(), Optional.of(created));
 
         service.signIn(command());
 
@@ -107,7 +107,7 @@ class TrustedSignInServiceTest {
     @Test
     void activatesAPendingUserBecauseThePlatformProvedTheAddress() {
         User pending = user(UserStatus.PENDING, Role.COMPANY_ADMIN);
-        when(userRepository.findByEmail("asha@acme.test")).thenReturn(Optional.of(pending));
+        when(userRepository.findByEmailWithinCompany("asha@acme.test", companyId)).thenReturn(Optional.of(pending));
         when(userRepository.save(pending)).thenReturn(pending);
 
         service.signIn(command());
@@ -120,9 +120,35 @@ class TrustedSignInServiceTest {
     void neverSignsInPlatformScopedOrDisabledOrLockedAccounts() {
         for (User blocked : new User[] {user(UserStatus.ACTIVE, Role.SUPER_ADMIN), user(UserStatus.ACTIVE, Role.PLATFORM_ADMIN),
                 user(UserStatus.DISABLED, Role.OPERATOR), user(UserStatus.LOCKED, Role.OPERATOR)}) {
-            when(userRepository.findByEmail("asha@acme.test")).thenReturn(Optional.of(blocked));
+            when(userRepository.findByEmailWithinCompany("asha@acme.test", companyId)).thenReturn(Optional.of(blocked));
             assertThatThrownBy(() -> service.signIn(command())).isInstanceOf(ForbiddenException.class);
         }
+        verify(sessionService, never()).openSession(any(), any(), org.mockito.ArgumentMatchers.anyBoolean(), any());
+    }
+
+    @Test
+    void createsTheUserWhenOnlyAnotherCompanyHasTheSameEmail() {
+        // The same person administers two companies: the lookup is scoped to this company, so the other company's
+        // account is invisible here and a new one is created for this company.
+        User created = user(UserStatus.ACTIVE, Role.VIEWER);
+        when(userRepository.findByEmailWithinCompany("asha@acme.test", companyId))
+                .thenReturn(Optional.empty(), Optional.of(created));
+
+        AuthService.AuthResult result = service.signIn(command());
+
+        assertThat(result.user()).isSameAs(created);
+        verify(provisioning).provisionPlatformUser(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void refusesAnAccountThatBelongsToAnotherCompany() {
+        User foreign = user(UserStatus.PENDING, Role.COMPANY_ADMIN);
+        foreign.setCompanyId(UUID.randomUUID());
+        when(userRepository.findByEmailWithinCompany("asha@acme.test", companyId)).thenReturn(Optional.of(foreign));
+
+        assertThatThrownBy(() -> service.signIn(command())).isInstanceOf(ForbiddenException.class);
+        verify(userRepository, never()).save(any());
         verify(sessionService, never()).openSession(any(), any(), org.mockito.ArgumentMatchers.anyBoolean(), any());
     }
 

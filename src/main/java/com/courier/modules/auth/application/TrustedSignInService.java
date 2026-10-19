@@ -59,7 +59,7 @@ public class TrustedSignInService {
         CompanyContext.setCompanyId(companyId);
 
         String email = User.normaliseEmail(command.email());
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findByEmailWithinCompany(email, companyId).orElse(null);
         if (user == null) {
             try {
                 userProvisioningService.provisionPlatformUser(new UserProvisioningService.NewPlatformUserCommand(
@@ -67,10 +67,14 @@ public class TrustedSignInService {
             } catch (DuplicateResourceException raced) {
                 // Two first sign-ins at the same moment: the other one created it.
             }
-            user = userRepository.findByEmail(email)
+            user = userRepository.findByEmailWithinCompany(email, companyId)
                     .orElseThrow(() -> new ForbiddenException(ErrorCode.ACCESS_DENIED, "Sign-in is not available."));
         }
 
+        if (!companyId.equals(user.getCompanyId())) {
+            // Cannot happen with the lookup above; refuse rather than ever touch another company's account.
+            throw new ForbiddenException(ErrorCode.ACCESS_DENIED, "Sign-in is not available for this account.");
+        }
         if (user.getRoles().stream().anyMatch(Role::isPlatformScoped)) {
             throw new ForbiddenException(ErrorCode.ACCESS_DENIED, "Sign-in is not available for this account.");
         }

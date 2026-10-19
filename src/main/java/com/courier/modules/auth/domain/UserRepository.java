@@ -30,6 +30,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByEmail(String email);
 
     /**
+     * The sign-in lookup used by the platform: the company predicate is part of the query, so the result can never
+     * be another company's account even when two companies share an email address (the same person administers
+     * several of them). It does not depend on the Hibernate filter.
+     */
+    @Query("select u from User u where u.email = :email and u.companyId = :companyId")
+    Optional<User> findByEmailWithinCompany(@Param("email") String email, @Param("companyId") UUID companyId);
+
+    /**
      * Mobile-number login (direct request: "user able to login using there contact
      * number as well") — same company-scoping requirement as {@link #findByEmail},
      * the caller must bind {@code CompanyContext} first. {@code mobile} carries no

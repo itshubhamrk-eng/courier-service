@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-19 — Sign in with OCCPL: look the person up inside the company being signed in to
+
+- On the dev server the first platform sign-in failed with `CompanyIsolationException: Cross-company update blocked for User`: the person was already a user of a *different* test company (same email), the email lookup returned that account, and marking it verified was refused by the isolation guard (correctly).
+- `TrustedSignInService` now uses `UserRepository.findByEmailWithinCompany(email, companyId)`, which carries the company in the query itself (it does not rely on the Hibernate filter), and refuses an account whose company differs. The same person can now have an account in several companies.
+- Tests: the other-company case (a new account is created for this company) and the foreign-account refusal. Unit suite: 1,362 passing.
+
+---
+
 ## 2026-10-16 — First Super Admin from two settings (`BOOTSTRAP_SUPER_ADMIN_EMAIL` / `_PASSWORD`)
 
 `SuperAdminBootstrap` creates the first `SUPER_ADMIN` on a fresh database at start-up when those settings are present and the email is not yet a platform operator.
