@@ -1,6 +1,8 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
+import com.courier.modules.customerportal.rates.domain.BookingOutcome;
+import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
@@ -43,6 +45,7 @@ class ShiprocketAdapterTest {
         cfg.setBaseUrl("https://sr.test");
         cfg.setEmail("api@shop.test");
         cfg.setPassword("secret");
+        cfg.setPickupLocation("OCCPL-PUNE");
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         adapter = new ShiprocketAdapter(builder, cfg);
@@ -98,5 +101,61 @@ class ShiprocketAdapterTest {
 
         assertThat(off.configured()).isFalse();
         assertThat(off.getRates(request(RateRequest.PaymentMode.PREPAID)).available()).isFalse();
+    }
+
+    static BookingRequest booking() {
+        BookingRequest.Party p = new BookingRequest.Party("Ravi", "9876543211", "12 Connaught Place", "110001", "New Delhi", "Delhi");
+        return new BookingRequest(UUID.randomUUID(), UUID.randomUUID(), "b-1", "10", request(RateRequest.PaymentMode.PREPAID),
+                p, p, "Garments", new BigDecimal("111.80"));
+    }
+
+    private void login() {
+        server.expect(requestTo("https://sr.test/v1/external/auth/login"))
+                .andRespond(withSuccess("{\"token\":\"tkn\"}", MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    @DisplayName("booking: order with our reference, then the chosen courier's AWB")
+    void books() {
+        login();
+        server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath("$.order_id").value("b-1"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath("$.pickup_location").value("OCCPL-PUNE"))
+                .andRespond(withSuccess("{\"order_id\":555,\"shipment_id\":777}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://sr.test/v1/external/courier/assign/awb"))
+                .andRespond(withSuccess("{\"response\":{\"data\":{\"awb_code\":\"SRAWB1\"}}}", MediaType.APPLICATION_JSON));
+
+        BookingOutcome o = adapter.book(booking());
+
+        assertThat(o.result()).isEqualTo(BookingOutcome.Result.BOOKED);
+        assertThat(o.awbNumber()).isEqualTo("SRAWB1");
+        assertThat(o.providerOrderRef()).isEqualTo("777");
+    }
+
+    @Test
+    @DisplayName("booking: the order exists but the AWB step fails -> UNKNOWN with the Shiprocket reference, never retried")
+    void halfBooked() {
+        login();
+        server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc"))
+                .andRespond(withSuccess("{\"shipment_id\":777}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://sr.test/v1/external/courier/assign/awb"))
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+        BookingOutcome o = adapter.book(booking());
+
+        assertThat(o.result()).isEqualTo(BookingOutcome.Result.UNKNOWN);
+        assertThat(o.providerOrderRef()).isEqualTo("777");
+    }
+
+    @Test
+    @DisplayName("booking: a 4xx on the order is a definite rejection, a 5xx is unknown")
+    void rejectedOrUnknown() {
+        login();
+        server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc")).andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY));
+        assertThat(adapter.book(booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
+
+        server.reset();
+        server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc")).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        assertThat(adapter.book(booking()).result()).isEqualTo(BookingOutcome.Result.UNKNOWN);
     }
 }

@@ -138,6 +138,7 @@ app:
       base-url: ${SHIPROCKET_BASE_URL:https://apiv2.shiprocket.in}
       email: ${SHIPROCKET_API_EMAIL:}
       password: ${SHIPROCKET_API_PASSWORD:}
+      pickup-location: ${SHIPROCKET_PICKUP_LOCATION:}
     delhivery:
       enabled: ${DELHIVERY_ENABLED:false}
       base-url: ${DELHIVERY_BASE_URL:https://track.delhivery.com}

@@ -1,5 +1,7 @@
 package com.courier.modules.customerportal.application;
 
+import com.courier.modules.customerportal.rates.domain.PortalBooking;
+import com.courier.modules.customerportal.rates.domain.PortalBookingRepository;
 import com.courier.modules.shipment.application.ShipmentPortalQueries;
 import com.courier.modules.shipment.application.ShipmentPortalQueries.PortalShipment;
 import com.courier.modules.shipment.domain.ShipmentStatus;
@@ -24,6 +26,7 @@ public class CustomerPortalDashboardService {
 
     private final CurrentCustomerResolver resolver;
     private final ShipmentPortalQueries shipments;
+    private final PortalBookingRepository bookings;
 
     @Transactional(readOnly = true)
     public Dashboard dashboard() {
@@ -32,9 +35,10 @@ public class CustomerPortalDashboardService {
         long total = counts.values().stream().mapToLong(Long::longValue).sum();
         return new Dashboard(
                 total,
-                // Portal bookings that are not yet a shipment (submitting / outcome unknown) arrive with
-                // the booking phase; until then every booking is a shipment and this is genuinely 0.
-                0L,
+                // Portal bookings still being submitted or awaiting confirmation with the courier.
+                bookings.countForCustomer(acting.companyId(), acting.customerId(),
+                        java.util.EnumSet.of(PortalBooking.Status.PENDING, PortalBooking.Status.SUBMITTING,
+                                PortalBooking.Status.OUTCOME_UNKNOWN)),
                 sum(counts, BOOKED),
                 sum(counts, IN_TRANSIT),
                 counts.get(ShipmentStatus.DELIVERED),

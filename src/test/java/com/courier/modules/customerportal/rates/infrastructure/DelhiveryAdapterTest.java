@@ -1,6 +1,7 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
+import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
@@ -32,6 +33,7 @@ class DelhiveryAdapterTest {
         cfg.setEnabled(true);
         cfg.setBaseUrl("https://dl.test");
         cfg.setToken("tok");
+        cfg.setPickupLocation("OCCPL PUNE");
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         adapter = new DelhiveryAdapter(builder, cfg, 5000);
@@ -80,5 +82,20 @@ class DelhiveryAdapterTest {
 
         assertThat(result.available()).isFalse();
         assertThat(result.reason()).contains("does not deliver");
+    }
+
+    @Test
+    @DisplayName("booking: success returns the waybill; success=false is a rejection")
+    void books() {
+        server.expect(requestTo("https://dl.test/api/cmu/create.json"))
+                .andRespond(withSuccess("{\"success\":true,\"packages\":[{\"waybill\":\"DLV123\",\"status\":\"Success\"}]}", MediaType.APPLICATION_JSON));
+        BookingOutcome ok = adapter.book(ShiprocketAdapterTest.booking());
+        assertThat(ok.result()).isEqualTo(BookingOutcome.Result.BOOKED);
+        assertThat(ok.awbNumber()).isEqualTo("DLV123");
+
+        server.reset();
+        server.expect(requestTo("https://dl.test/api/cmu/create.json"))
+                .andRespond(withSuccess("{\"success\":false,\"packages\":[{\"remarks\":[\"Pin not serviceable\"]}]}", MediaType.APPLICATION_JSON));
+        assertThat(adapter.book(ShiprocketAdapterTest.booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
     }
 }

@@ -1,6 +1,8 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
+import com.courier.modules.customerportal.rates.domain.BookingOutcome;
+import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
@@ -13,11 +15,16 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +90,87 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
             log.warn("Shiprocket rates failed: {}", e.getClass().getSimpleName());
             return ProviderResult.unavailable(CODE, displayName(), "Shiprocket could not be reached.");
         }
+    }
+
+    /**
+     * Two calls: create the order ({@code order_id} = our booking reference), then assign the chosen courier
+     * and get the AWB. A failure after the order exists is UNKNOWN with the Shiprocket shipment id, so
+     * operations can finish or cancel it in the Shiprocket panel — it is never created twice by us.
+     */
+    @Override
+    public BookingOutcome book(BookingRequest b) {
+        if (!config.bookable()) {
+            return BookingOutcome.rejected("NOT_CONFIGURED", "Shiprocket bookings are not set up yet.");
+        }
+        String shipmentId;
+        try {
+            JsonNode order = http.post().uri("/v1/external/orders/create/adhoc")
+                    .header("Authorization", "Bearer " + token())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(orderBody(b, config.getPickupLocation()))
+                    .retrieve()
+                    .body(JsonNode.class);
+            shipmentId = order == null ? null : order.path("shipment_id").asText(null);
+            if (shipmentId == null || shipmentId.isBlank()) {
+                return BookingOutcome.unknown(null, "Shiprocket did not confirm the order. Our team will check it.");
+            }
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            if (status >= 400 && status < 500) {
+                return BookingOutcome.rejected("PROVIDER_REJECTED", "Shiprocket refused the order. Please check the details.");
+            }
+            return BookingOutcome.unknown(null, "Shiprocket answered with an error. Our team will check whether the order was created.");
+        } catch (ResourceAccessException e) {
+            return BookingOutcome.unknown(null, "Shiprocket did not answer in time. Our team will check whether the order was created.");
+        } catch (IllegalStateException e) {
+            // Login failed: the order request was never sent.
+            return BookingOutcome.rejected("PROVIDER_UNAVAILABLE", "Shiprocket could not be reached. Nothing was booked.");
+        } catch (RestClientException e) {
+            return BookingOutcome.unknown(null, "Shiprocket's answer could not be read. Our team will check whether the order was created.");
+        }
+        try {
+            JsonNode awb = http.post().uri("/v1/external/courier/assign/awb")
+                    .header("Authorization", "Bearer " + token())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("shipment_id", shipmentId, "courier_id", b.serviceCode()))
+                    .retrieve()
+                    .body(JsonNode.class);
+            String code = awb == null ? null : awb.path("response").path("data").path("awb_code").asText(null);
+            if (code == null || code.isBlank()) {
+                return BookingOutcome.unknown(shipmentId, "The order was created but no tracking number was assigned yet. Our team will complete it.");
+            }
+            return BookingOutcome.booked(shipmentId, code, null, "Booked with Shiprocket.");
+        } catch (RestClientException | IllegalStateException e) {
+            return BookingOutcome.unknown(shipmentId, "The order was created but the courier could not be assigned yet. Our team will complete it.");
+        }
+    }
+
+    static Map<String, Object> orderBody(BookingRequest b, String pickupLocation) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("order_id", b.reference());
+        m.put("order_date", LocalDateTime.now(ZoneId.of("Asia/Kolkata")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+        m.put("pickup_location", pickupLocation);
+        m.put("billing_customer_name", b.delivery().name());
+        m.put("billing_last_name", "");
+        m.put("billing_address", b.delivery().address());
+        m.put("billing_city", b.delivery().city());
+        m.put("billing_pincode", b.delivery().pincode());
+        m.put("billing_state", b.delivery().state());
+        m.put("billing_country", "India");
+        m.put("billing_phone", b.delivery().phone());
+        m.put("shipping_is_billing", true);
+        m.put("order_items", List.of(Map.of("name", b.contents() == null ? "Goods" : b.contents(), "sku", b.reference(),
+                "units", b.rate().packageCount(), "selling_price", b.rate().declaredValue()
+                        .divide(BigDecimal.valueOf(b.rate().packageCount()), 2, RoundingMode.HALF_UP))));
+        m.put("payment_method", b.rate().cod() ? "COD" : "Prepaid");
+        m.put("sub_total", b.rate().declaredValue());
+        m.put("length", b.rate().lengthCm());
+        m.put("breadth", b.rate().breadthCm());
+        m.put("height", b.rate().heightCm());
+        m.put("weight", b.rate().actualWeightKg());
+        m.put("comment", "Pickup contact: " + b.pickup().name() + ", " + b.pickup().phone() + ", " + b.pickup().address()
+                + ", " + b.pickup().pincode());
+        return m;
     }
 
     static List<ProviderRate> parse(JsonNode body, RateRequest r) {

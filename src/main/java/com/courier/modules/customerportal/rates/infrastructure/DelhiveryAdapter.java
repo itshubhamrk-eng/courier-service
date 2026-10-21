@@ -1,6 +1,8 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
+import com.courier.modules.customerportal.rates.domain.BookingOutcome;
+import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
@@ -13,6 +15,12 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.ResourceAccessException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -84,6 +92,75 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
             log.warn("Delhivery rates failed: {}", e.getClass().getSimpleName());
             return ProviderResult.unavailable(CODE, displayName(), "Delhivery could not be reached.");
         }
+    }
+
+    /**
+     * One call ({@code POST /api/cmu/create.json}, form field {@code data} = JSON) with our booking reference as
+     * the order number. {@code success=false} is a definite rejection; a timeout or a 5xx is UNKNOWN.
+     */
+    @Override
+    public BookingOutcome book(BookingRequest b) {
+        if (!config.bookable()) {
+            return BookingOutcome.rejected("NOT_CONFIGURED", "Delhivery bookings are not set up yet.");
+        }
+        try {
+            MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+            form.add("format", "json");
+            form.add("data", new ObjectMapper().writeValueAsString(manifest(b, config.getPickupLocation(), chargeableGrams(b.rate()))));
+            JsonNode body = http.post().uri("/api/cmu/create.json")
+                    .header("Authorization", "Token " + config.getToken())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode pkg = body == null ? null : body.path("packages").path(0);
+            String waybill = pkg == null ? null : pkg.path("waybill").asText(null);
+            if (body != null && body.path("success").asBoolean(false) && waybill != null && !waybill.isBlank()) {
+                return BookingOutcome.booked(b.reference(), waybill, null, "Booked with Delhivery.");
+            }
+            if (body != null && body.has("success") && !body.path("success").asBoolean(true)) {
+                String remark = pkg == null ? null : pkg.path("remarks").toString();
+                log.info("Delhivery refused booking {}: {}", b.reference(), remark);
+                return BookingOutcome.rejected("PROVIDER_REJECTED", "Delhivery refused the shipment. Please check the details.");
+            }
+            return BookingOutcome.unknown(b.reference(), "Delhivery did not confirm the shipment. Our team will check it.");
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            return status >= 400 && status < 500
+                    ? BookingOutcome.rejected("PROVIDER_REJECTED", "Delhivery refused the shipment. Please check the details.")
+                    : BookingOutcome.unknown(b.reference(), "Delhivery answered with an error. Our team will check whether it was booked.");
+        } catch (ResourceAccessException e) {
+            return BookingOutcome.unknown(b.reference(), "Delhivery did not answer in time. Our team will check whether it was booked.");
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return BookingOutcome.rejected("BOOKING_INVALID", "The shipment could not be prepared for Delhivery. Nothing was booked.");
+        } catch (RestClientException e) {
+            return BookingOutcome.unknown(b.reference(), "Delhivery's answer could not be read. Our team will check whether it was booked.");
+        }
+    }
+
+    static Map<String, Object> manifest(BookingRequest b, String pickupLocation, BigDecimal grams) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("name", b.delivery().name());
+        s.put("add", b.delivery().address());
+        s.put("pin", b.delivery().pincode());
+        s.put("city", b.delivery().city());
+        s.put("state", b.delivery().state());
+        s.put("country", "India");
+        s.put("phone", b.delivery().phone());
+        s.put("order", b.reference());
+        s.put("payment_mode", b.rate().cod() ? "COD" : "Prepaid");
+        s.put("cod_amount", b.rate().cod() ? b.rate().declaredValue().toPlainString() : "0");
+        s.put("total_amount", b.rate().declaredValue().toPlainString());
+        s.put("products_desc", b.contents());
+        s.put("quantity", String.valueOf(b.rate().packageCount()));
+        s.put("weight", grams.toPlainString());
+        s.put("shipment_length", b.rate().lengthCm().toPlainString());
+        s.put("shipment_width", b.rate().breadthCm().toPlainString());
+        s.put("shipment_height", b.rate().heightCm().toPlainString());
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("shipments", List.of(s));
+        m.put("pickup_location", Map.of("name", pickupLocation));
+        return m;
     }
 
     private boolean serviceable(String pincode, boolean cod) {

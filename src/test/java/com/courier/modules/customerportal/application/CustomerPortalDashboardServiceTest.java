@@ -1,5 +1,6 @@
 package com.courier.modules.customerportal.application;
 
+import com.courier.modules.customerportal.rates.domain.PortalBookingRepository;
 import com.courier.modules.shipment.application.ShipmentPortalQueries;
 import com.courier.modules.shipment.domain.ShipmentStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +27,7 @@ class CustomerPortalDashboardServiceTest {
 
     @Mock private CurrentCustomerResolver resolver;
     @Mock private ShipmentPortalQueries shipments;
+    @Mock private PortalBookingRepository bookings;
     @InjectMocks private CustomerPortalDashboardService service;
 
     @Test
@@ -43,6 +45,7 @@ class CustomerPortalDashboardServiceTest {
         counts.put(ShipmentStatus.CANCELLED, 1L);
         when(resolver.require()).thenReturn(ACTING);
         when(shipments.statusCounts(ACTING.companyId(), ACTING.customerId())).thenReturn(counts);
+        when(bookings.countForCustomer(org.mockito.ArgumentMatchers.eq(ACTING.companyId()), org.mockito.ArgumentMatchers.eq(ACTING.customerId()), org.mockito.ArgumentMatchers.any())).thenReturn(2L);
         when(shipments.recent(eq(ACTING.companyId()), eq(ACTING.customerId()), anyInt())).thenReturn(List.of());
 
         CustomerPortalDashboardService.Dashboard d = service.dashboard();
@@ -52,6 +55,6 @@ class CustomerPortalDashboardServiceTest {
         assertThat(d.inTransit()).isEqualTo(5);
         assertThat(d.delivered()).isEqualTo(7);
         assertThat(d.cancelled()).isEqualTo(1);
-        assertThat(d.pendingBookings()).isZero();
+        assertThat(d.pendingBookings()).isEqualTo(2);
     }
 }

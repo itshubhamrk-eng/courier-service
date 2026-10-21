@@ -1,5 +1,7 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
+import com.courier.modules.customerportal.rates.domain.BookingOutcome;
+import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
@@ -12,6 +14,8 @@ import com.courier.modules.customerpricing.application.ZoneRateService.QuoteComm
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.domain.Pincode;
+import com.courier.modules.pickup.application.PickupService;
+import com.courier.modules.pickup.domain.PickupRequest;
 import com.courier.shared.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +33,10 @@ import java.util.Optional;
  * thread: it needs the bound company and the signed-in principal.
  *
  * <p>The rate card charges actual weight (or the zone minimum), not volumetric weight.
+ *
+ * <p>Booking creates a <b>pickup request</b> in OCCPL's own operations flow (module pickup): operations
+ * assign it, collect the parcel and book the shipment at the branch, which issues the tracking number. The
+ * delivery details, contents and quoted total go into the pickup's remarks for the booking clerk.
  */
 @Slf4j
 @Component
@@ -39,6 +47,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
 
     private final PincodeService pincodes;
     private final ZoneRateService zoneRates;
+    private final PickupService pickups;
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "OCCPL Network"; }
@@ -77,6 +86,32 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         add(lines, "FOV", "Risk cover (FOV)", ChargeComponent.INSURANCE, q.fovCharge());
         return ProviderResult.available(CODE, displayName(), List.of(new ProviderRate(
                 "OCCPL_STANDARD", "OCCPL Standard", "SURFACE", null, null, q.chargeableWeight(), lines, null, null)));
+    }
+
+    @Override
+    public BookingOutcome book(BookingRequest b) {
+        PincodeLocation pickupAt = pincodes.location(b.pickup().pincode()).orElse(null);
+        try {
+            PickupRequest p = pickups.createFromCustomerPortal(new PickupService.SaveCommand(
+                    b.customerId(), b.pickup().name(), b.pickup().phone(), b.pickup().address(), b.pickup().city(),
+                    pickupAt == null ? null : pickupAt.districtId(), b.pickup().pincode(), b.rate().packageCount(),
+                    b.rate().actualWeightKg(), null, null, remarks(b), null, null));
+            return BookingOutcome.booked(p.getPickupNo(), null, null,
+                    "Pickup " + p.getPickupNo() + " requested. The tracking number is issued when the parcel is collected and booked.");
+        } catch (ApiException e) {
+            // Local validation refused it inside our own transaction: nothing was created.
+            return BookingOutcome.rejected("PICKUP_REFUSED", e.getMessage());
+        }
+    }
+
+    static String remarks(BookingRequest b) {
+        String text = "Portal booking " + b.reference() + ". Deliver to " + b.delivery().name() + ", " + b.delivery().phone()
+                + ", " + b.delivery().address() + ", " + b.delivery().city() + " " + b.delivery().pincode()
+                + ". Contents: " + b.contents() + ". Value " + b.rate().declaredValue().toPlainString()
+                + ", " + (b.rate().cod() ? "COD" : "prepaid") + ", " + b.rate().packageCount() + " pkg, "
+                + b.rate().lengthCm().toPlainString() + "x" + b.rate().breadthCm().toPlainString() + "x"
+                + b.rate().heightCm().toPlainString() + " cm. Quoted total INR " + b.customerTotal().toPlainString() + ".";
+        return text.length() <= 500 ? text : text.substring(0, 500);
     }
 
     private Optional<Pincode> find(String code) {

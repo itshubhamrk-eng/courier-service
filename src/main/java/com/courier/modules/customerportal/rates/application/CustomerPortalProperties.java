@@ -45,9 +45,15 @@ public class CustomerPortalProperties {
         /** API user created in the Shiprocket panel (Settings → API). */
         private String email;
         private String password;
+        /** Pickup location nickname registered in the Shiprocket panel (needed for booking). */
+        private String pickupLocation;
 
         public boolean configured() {
             return enabled && notBlank(email) && notBlank(password);
+        }
+
+        public boolean bookable() {
+            return configured() && notBlank(pickupLocation);
         }
     }
 
@@ -63,6 +69,10 @@ public class CustomerPortalProperties {
 
         public boolean configured() {
             return enabled && notBlank(token);
+        }
+
+        public boolean bookable() {
+            return configured() && notBlank(pickupLocation);
         }
     }
 
