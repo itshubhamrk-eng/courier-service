@@ -152,14 +152,14 @@ public class RateComparisonService {
         List<ProviderResult> results = new ArrayList<>();
         Map<CourierProviderAdapter, CompletableFuture<ProviderResult>> pending = new LinkedHashMap<>();
         for (CourierProviderAdapter a : adapters) {
-            if (!a.configured()) {
+            if (!a.configured(request.companyId())) {
                 results.add(ProviderResult.unavailable(a.code(), a.displayName(), a.displayName() + " is not connected yet."));
             } else if (a.external()) {
                 pending.put(a, CompletableFuture.supplyAsync(() -> a.getRates(request), executor));
             }
         }
         // OCCPL's own network needs the bound company and principal, so it runs here while the others work.
-        adapters.stream().filter(a -> !a.external() && a.configured()).forEach(a -> results.add(0, safe(a, request)));
+        adapters.stream().filter(a -> !a.external() && a.configured(request.companyId())).forEach(a -> results.add(0, safe(a, request)));
         long timeoutMs = properties.getProviderTimeout().toMillis() + 2000;
         for (Map.Entry<CourierProviderAdapter, CompletableFuture<ProviderResult>> e : pending.entrySet()) {
             CourierProviderAdapter a = e.getKey();

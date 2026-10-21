@@ -1,5 +1,6 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
+import com.courier.modules.customerportal.integrations.application.CourierCredentials;
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import lombok.extern.slf4j.Slf4j;
@@ -23,15 +24,20 @@ import java.util.concurrent.Executors;
 public class CourierProvidersConfig {
 
     @Bean
-    public CourierProviderAdapter shiprocketAdapter(RestClient.Builder builder, CustomerPortalProperties props) {
-        log.info("Customer portal: Shiprocket {}", props.getShiprocket().configured() ? "connected" : "not connected");
-        return new ShiprocketAdapter(withTimeouts(builder, props), props.getShiprocket());
+    public CourierProviderAdapter shiprocketAdapter(RestClient.Builder builder, CustomerPortalProperties props,
+                                                    CourierCredentials credentials) {
+        log.info("Customer portal: Shiprocket {} (companies can also connect their own account)",
+                props.getShiprocket().configured() ? "connected by the server settings" : "not set in the server settings");
+        return new ShiprocketAdapter(withTimeouts(builder, props), props.getShiprocket(), credentials::shiprocket);
     }
 
     @Bean
-    public CourierProviderAdapter delhiveryAdapter(RestClient.Builder builder, CustomerPortalProperties props) {
-        log.info("Customer portal: Delhivery {}", props.getDelhivery().configured() ? "connected" : "not connected");
-        return new DelhiveryAdapter(withTimeouts(builder, props), props.getDelhivery(), props.getVolumetricDivisor());
+    public CourierProviderAdapter delhiveryAdapter(RestClient.Builder builder, CustomerPortalProperties props,
+                                                   CourierCredentials credentials) {
+        log.info("Customer portal: Delhivery {} (companies can also connect their own account)",
+                props.getDelhivery().configured() ? "connected by the server settings" : "not set in the server settings");
+        return new DelhiveryAdapter(withTimeouts(builder, props), props.getDelhivery(), credentials::delhivery,
+                props.getVolumetricDivisor());
     }
 
     @Bean

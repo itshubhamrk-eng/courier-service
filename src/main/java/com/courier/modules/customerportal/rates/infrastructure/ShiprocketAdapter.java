@@ -5,6 +5,7 @@ import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
+import com.courier.modules.customerportal.rates.domain.ConnectionTest;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
@@ -34,6 +35,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * Shiprocket (aggregator): one call returns every courier Shiprocket can use for the lane, with rates.
@@ -50,23 +54,37 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
     private static final Duration TOKEN_LIFETIME = Duration.ofDays(9); // Shiprocket tokens last 10 days
 
     private final RestClient http;
-    private final CustomerPortalProperties.Shiprocket config;
-    private volatile String token;
-    private volatile Instant tokenExpires = Instant.EPOCH;
+    /** The server's own settings (also the source of the base URL); {@link #settings} gives a company's. */
+    private final CustomerPortalProperties.Shiprocket env;
+    private final Function<UUID, CustomerPortalProperties.Shiprocket> settings;
+    /** One login per distinct account (companies using the same account share it), keyed by a hash of its credentials. */
+    private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
+    private record Session(String token, Instant expires) {
+    }
+
+    /** Every company uses the same settings. */
     public ShiprocketAdapter(RestClient.Builder builder, CustomerPortalProperties.Shiprocket config) {
-        this.config = config;
-        this.http = builder.baseUrl(config.getBaseUrl()).build();
+        this(builder, config, companyId -> config);
+    }
+
+    /** {@code settings} answers the credentials of one company (its own saved account, else the server's). */
+    public ShiprocketAdapter(RestClient.Builder builder, CustomerPortalProperties.Shiprocket env,
+                             Function<UUID, CustomerPortalProperties.Shiprocket> settings) {
+        this.env = env;
+        this.settings = settings;
+        this.http = builder.baseUrl(env.getBaseUrl()).build();
     }
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "Shiprocket"; }
     @Override public boolean external() { return true; }
-    @Override public boolean configured() { return config.configured(); }
+    @Override public boolean configured() { return env.configured(); }
+    @Override public boolean configured(UUID companyId) { return settings.apply(companyId).configured(); }
 
     @Override
     public ProviderResult getRates(RateRequest r) {
-        if (!configured()) {
+        if (!configured(r.companyId())) {
             return ProviderResult.unavailable(CODE, displayName(), "Shiprocket is not connected yet.");
         }
         try {
@@ -81,14 +99,14 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
                             .queryParam("declared_value", r.declaredValue().toPlainString())
                             .queryParam("cod", r.cod() ? 1 : 0)
                             .build())
-                    .header("Authorization", "Bearer " + token())
+                    .header("Authorization", "Bearer " + token(r.companyId()))
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(JsonNode.class);
             return ProviderResult.available(CODE, displayName(), parse(body, r));
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 401) {
-                token = null; // forces a fresh login next time
+                sessions.remove(fingerprint(r.companyId())); // forces a fresh login next time
             }
             log.warn("Shiprocket rates failed: HTTP {}", e.getStatusCode().value());
             return ProviderResult.unavailable(CODE, displayName(), "Shiprocket did not return rates for this shipment.");
@@ -105,13 +123,14 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
      */
     @Override
     public BookingOutcome book(BookingRequest b) {
+        CustomerPortalProperties.Shiprocket config = settings.apply(b.companyId());
         if (!config.bookable()) {
             return BookingOutcome.rejected("NOT_CONFIGURED", "Shiprocket bookings are not set up yet.");
         }
         String shipmentId;
         try {
             JsonNode order = http.post().uri("/v1/external/orders/create/adhoc")
-                    .header("Authorization", "Bearer " + token())
+                    .header("Authorization", "Bearer " + token(b.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(orderBody(b, config.getPickupLocation()))
                     .retrieve()
@@ -136,7 +155,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         }
         try {
             JsonNode awb = http.post().uri("/v1/external/courier/assign/awb")
-                    .header("Authorization", "Bearer " + token())
+                    .header("Authorization", "Bearer " + token(b.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("shipment_id", shipmentId, "courier_id", b.serviceCode()))
                     .retrieve()
@@ -154,7 +173,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
     /** {@code GET /v1/external/courier/track/awb/{awb}}: Shiprocket's activities for the AWB, newest first. */
     @Override
     public TrackingResult track(ShipmentRef ref) {
-        if (!configured()) {
+        if (!configured(ref.companyId())) {
             return TrackingResult.unavailable("Shiprocket is not connected, so tracking is not available.");
         }
         if (ref.awbNumber() == null || ref.awbNumber().isBlank()) {
@@ -162,14 +181,14 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         }
         try {
             JsonNode body = http.get().uri("/v1/external/courier/track/awb/{awb}", ref.awbNumber())
-                    .header("Authorization", "Bearer " + token())
+                    .header("Authorization", "Bearer " + token(ref.companyId()))
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(JsonNode.class);
             return parseTracking(body, ref.awbNumber());
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 401) {
-                token = null;
+                sessions.remove(fingerprint(ref.companyId()));
             }
             log.warn("Shiprocket tracking failed: HTTP {}", e.getStatusCode().value());
             return TrackingResult.unavailable("Shiprocket did not return tracking right now. Please try again later.");
@@ -203,7 +222,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
     /** {@code POST /v1/external/courier/generate/label}: Shiprocket answers with a PDF URL it hosts. */
     @Override
     public LabelResult label(ShipmentRef ref) {
-        if (!configured()) {
+        if (!configured(ref.companyId())) {
             return LabelResult.notAvailable("Shiprocket is not connected, so labels are not available.");
         }
         if (ref.providerOrderRef() == null || ref.awbNumber() == null) {
@@ -211,7 +230,7 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         }
         try {
             JsonNode body = http.post().uri("/v1/external/courier/generate/label")
-                    .header("Authorization", "Bearer " + token())
+                    .header("Authorization", "Bearer " + token(ref.companyId()))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("shipment_id", List.of(ref.providerOrderRef())))
                     .retrieve()
@@ -302,9 +321,24 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         return rates;
     }
 
-    private synchronized String token() {
-        if (token != null && Instant.now().isBefore(tokenExpires)) {
-            return token;
+    private String fingerprint(UUID companyId) {
+        CustomerPortalProperties.Shiprocket config = settings.apply(companyId);
+        try {
+            byte[] hash = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest((config.getEmail() + "\n" + config.getPassword()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A login for the company's current account; a changed e-mail or password is a different account and logs in again. */
+    private synchronized String token(UUID companyId) {
+        CustomerPortalProperties.Shiprocket config = settings.apply(companyId);
+        String fingerprint = fingerprint(companyId);
+        Session current = sessions.get(fingerprint);
+        if (current != null && Instant.now().isBefore(current.expires())) {
+            return current.token();
         }
         JsonNode login = http.post().uri("/v1/external/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -315,9 +349,57 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         if (fresh == null || fresh.isBlank()) {
             throw new IllegalStateException("Shiprocket login returned no token");
         }
-        token = fresh;
-        tokenExpires = Instant.now().plus(TOKEN_LIFETIME);
+        sessions.put(fingerprint, new Session(fresh, Instant.now().plus(TOKEN_LIFETIME)));
         return fresh;
+    }
+
+    /** A fresh login with the company's credentials, then (best effort) a check that the pickup location exists. */
+    @Override
+    public ConnectionTest testConnection(UUID companyId) {
+        CustomerPortalProperties.Shiprocket config = settings.apply(companyId);
+        if (!config.configured()) {
+            return ConnectionTest.failed("Shiprocket is switched off or its e-mail and password are missing.");
+        }
+        String bearer;
+        try {
+            sessions.remove(fingerprint(companyId));
+            bearer = token(companyId);
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            return ConnectionTest.failed(status >= 400 && status < 500
+                    ? "Shiprocket did not accept the e-mail and password. Check that they are those of an API user."
+                    : "Shiprocket answered with an error. Please try again later.");
+        } catch (RestClientException | IllegalStateException e) {
+            return ConnectionTest.failed("Shiprocket could not be reached. Please try again later.");
+        }
+        String wanted = config.getPickupLocation();
+        if (wanted == null || wanted.isBlank()) {
+            return ConnectionTest.ok("Login accepted. Add a pickup location to allow bookings.");
+        }
+        try {
+            JsonNode body = http.get().uri("/v1/external/settings/company/pickup")
+                    .header("Authorization", "Bearer " + bearer)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode list = body == null ? null : body.path("data").path("shipping_address");
+            if (list != null && list.isArray() && list.size() > 0) {
+                boolean found = false;
+                for (JsonNode a : list) {
+                    if (wanted.equalsIgnoreCase(a.path("pickup_location").asText(""))) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    return ConnectionTest.failed("Login accepted, but no pickup location named '" + wanted
+                            + "' is registered in Shiprocket. Use the name exactly as shown there.");
+                }
+            }
+        } catch (RestClientException e) {
+            return ConnectionTest.ok("Login accepted. The pickup location could not be checked and will be verified when you book.");
+        }
+        return ConnectionTest.ok("Connected. Shiprocket accepted the login and the pickup location.");
     }
 
     private static BigDecimal decimal(JsonNode n, String field) {

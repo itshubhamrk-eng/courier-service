@@ -217,6 +217,9 @@ public enum AuditAction {
     // The audit detail never carries the key secret itself, only enabled/keyId/whether a
     // secret was rotated — same "never returned" rule the secret's own API response follows.
     COMPANY_RAZORPAY_CONFIG_UPDATED,
+    COURIER_INTEGRATION_SAVED,
+    COURIER_INTEGRATION_TESTED,
+    COURIER_INTEGRATION_DISCONNECTED,
 
     // --- master data (Phase 6, COMPANY_ADMIN). One set for all twelve lists: the entity
     // name is already carried on every audit row, so a MASTER_COUNTRY_CREATED /
