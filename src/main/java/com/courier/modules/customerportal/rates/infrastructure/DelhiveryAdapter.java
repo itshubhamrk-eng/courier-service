@@ -5,6 +5,7 @@ import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ChargeLine;
+import com.courier.modules.customerportal.rates.domain.ConnectionTest;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
@@ -33,6 +34,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * Delhivery B2C: pincode serviceability ({@code GET /c/api/pin-codes/json/}) and shipping charges
@@ -47,27 +50,42 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
     private static final String[][] MODES = {{"S", "Surface", "SURFACE"}, {"E", "Express", "AIR"}};
 
     private final RestClient http;
-    private final CustomerPortalProperties.Delhivery config;
+    /** The server's own settings (also the source of the base URL); {@link #settings} gives a company's. */
+    private final CustomerPortalProperties.Delhivery env;
+    private final Function<UUID, CustomerPortalProperties.Delhivery> settings;
     private final int volumetricDivisor;
 
+    /** Every company uses the same settings. */
     public DelhiveryAdapter(RestClient.Builder builder, CustomerPortalProperties.Delhivery config, int volumetricDivisor) {
-        this.config = config;
+        this(builder, config, companyId -> config, volumetricDivisor);
+    }
+
+    /** {@code settings} answers the credentials of one company (its own saved account, else the server's). */
+    public DelhiveryAdapter(RestClient.Builder builder, CustomerPortalProperties.Delhivery env,
+                            Function<UUID, CustomerPortalProperties.Delhivery> settings, int volumetricDivisor) {
+        this.env = env;
+        this.settings = settings;
         this.volumetricDivisor = volumetricDivisor;
-        this.http = builder.baseUrl(config.getBaseUrl()).build();
+        this.http = builder.baseUrl(env.getBaseUrl()).build();
+    }
+
+    private String token(UUID companyId) {
+        return settings.apply(companyId).getToken();
     }
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "Delhivery"; }
     @Override public boolean external() { return true; }
-    @Override public boolean configured() { return config.configured(); }
+    @Override public boolean configured() { return env.configured(); }
+    @Override public boolean configured(UUID companyId) { return settings.apply(companyId).configured(); }
 
     @Override
     public ProviderResult getRates(RateRequest r) {
-        if (!configured()) {
+        if (!configured(r.companyId())) {
             return ProviderResult.unavailable(CODE, displayName(), "Delhivery is not connected yet.");
         }
         try {
-            if (!serviceable(r.deliveryPincode(), r.cod())) {
+            if (!serviceable(r.deliveryPincode(), r.cod(), r.companyId())) {
                 return ProviderResult.unavailable(CODE, displayName(),
                         "Delhivery does not deliver" + (r.cod() ? " cash on delivery" : "") + " to " + r.deliveryPincode() + ".");
             }
@@ -84,7 +102,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
                                 .queryParam("pt", r.cod() ? "COD" : "Pre-paid")
                                 .queryParam("cod", r.cod() ? r.declaredValue().toPlainString() : "0")
                                 .build())
-                        .header("Authorization", "Token " + config.getToken())
+                        .header("Authorization", "Token " + token(r.companyId()))
                         .accept(MediaType.APPLICATION_JSON)
                         .retrieve()
                         .body(JsonNode.class);
@@ -107,6 +125,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
      */
     @Override
     public BookingOutcome book(BookingRequest b) {
+        CustomerPortalProperties.Delhivery config = settings.apply(b.companyId());
         if (!config.bookable()) {
             return BookingOutcome.rejected("NOT_CONFIGURED", "Delhivery bookings are not set up yet.");
         }
@@ -145,10 +164,39 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         }
     }
 
+    /**
+     * One serviceability lookup with the company's token: 200 means the token is accepted. The pickup location can only be
+     * checked by Delhivery when a shipment is booked.
+     */
+    @Override
+    public ConnectionTest testConnection(UUID companyId) {
+        CustomerPortalProperties.Delhivery config = settings.apply(companyId);
+        if (!config.configured()) {
+            return ConnectionTest.failed("Delhivery is switched off or its API token is missing.");
+        }
+        try {
+            http.get().uri(u -> u.path("/c/api/pin-codes/json/").queryParam("filter_codes", "110001").build())
+                    .header("Authorization", "Token " + config.getToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .toBodilessEntity();
+            return ConnectionTest.ok(config.bookable()
+                    ? "Connected. Delhivery accepted the API token. The pickup location is checked when you book."
+                    : "Delhivery accepted the API token. Add a pickup location to allow bookings.");
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            return ConnectionTest.failed(status == 401 || status == 403
+                    ? "Delhivery did not accept the API token. Check that it is the token of this account (staging and live differ)."
+                    : "Delhivery answered with an error (HTTP " + status + "). Please try again later.");
+        } catch (RestClientException e) {
+            return ConnectionTest.failed("Delhivery could not be reached. Please try again later.");
+        }
+    }
+
     /** {@code GET /api/v1/packages/json/?waybill=}: the current status and every scan, newest first. */
     @Override
     public TrackingResult track(ShipmentRef ref) {
-        if (!configured()) {
+        if (!configured(ref.companyId())) {
             return TrackingResult.unavailable("Delhivery is not connected, so tracking is not available.");
         }
         if (ref.awbNumber() == null || ref.awbNumber().isBlank()) {
@@ -157,7 +205,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         try {
             JsonNode body = http.get()
                     .uri(u -> u.path("/api/v1/packages/json/").queryParam("waybill", ref.awbNumber()).build())
-                    .header("Authorization", "Token " + config.getToken())
+                    .header("Authorization", "Token " + token(ref.companyId()))
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(JsonNode.class);
@@ -193,7 +241,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
     /** {@code GET /api/p/packing_slip?wbns=&pdf=true}: Delhivery answers with a link to the label PDF. */
     @Override
     public LabelResult label(ShipmentRef ref) {
-        if (!configured()) {
+        if (!configured(ref.companyId())) {
             return LabelResult.notAvailable("Delhivery is not connected, so labels are not available.");
         }
         if (ref.awbNumber() == null || ref.awbNumber().isBlank()) {
@@ -202,7 +250,7 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         try {
             JsonNode body = http.get()
                     .uri(u -> u.path("/api/p/packing_slip").queryParam("wbns", ref.awbNumber()).queryParam("pdf", "true").build())
-                    .header("Authorization", "Token " + config.getToken())
+                    .header("Authorization", "Token " + token(ref.companyId()))
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(JsonNode.class);
@@ -252,10 +300,10 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         return m;
     }
 
-    private boolean serviceable(String pincode, boolean cod) {
+    private boolean serviceable(String pincode, boolean cod, UUID companyId) {
         JsonNode body = http.get()
                 .uri(u -> u.path("/c/api/pin-codes/json/").queryParam("filter_codes", pincode).build())
-                .header("Authorization", "Token " + config.getToken())
+                .header("Authorization", "Token " + token(companyId))
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(JsonNode.class);

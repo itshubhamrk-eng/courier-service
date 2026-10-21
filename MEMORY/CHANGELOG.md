@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Courier integrations (per-company courier accounts)
+
+- V129 `courier_integrations`; `/api/v1/courier-integrations` (list, save, test, disconnect; COMPANY_ADMIN); secrets encrypted
+  and write-only. Shiprocket and Delhivery adapters use the company's own account (else the server's env settings).
+  Blue Dart and Ekart listed as not built yet. Tests: `CourierCredentialsTest`, `CourierIntegrationServiceTest`, adapter tests.
+  UI: courier-web branch `claude/courier-integrations-ui`.
+
 ## 2026-10-21 — Customer portal phase 6: review, hardening, deployment
 
 - Security review of the portal (resolver on every customer service, scope gate, impersonation double gate, label SSRF guard,

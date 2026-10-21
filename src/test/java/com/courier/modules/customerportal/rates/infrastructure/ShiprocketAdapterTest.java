@@ -4,6 +4,7 @@ import com.courier.modules.customerportal.rates.application.CustomerPortalProper
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
+import com.courier.modules.customerportal.rates.domain.ConnectionTest;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.LabelResult;
@@ -231,5 +232,119 @@ class ShiprocketAdapterTest {
         assertThat(label.url()).isEqualTo("https://kr-ship.s3.amazonaws.com/l.pdf");
         assertThat(adapter.labelHosts()).contains(".amazonaws.com");
         server.verify();
+    }
+
+    private static CustomerPortalProperties.Shiprocket account(String email, String password, String pickup) {
+        CustomerPortalProperties.Shiprocket c = new CustomerPortalProperties.Shiprocket();
+        c.setEnabled(true);
+        c.setBaseUrl("https://sr.test");
+        c.setEmail(email);
+        c.setPassword(password);
+        c.setPickupLocation(pickup);
+        return c;
+    }
+
+    private ShiprocketAdapter perCompany(java.util.Map<UUID, CustomerPortalProperties.Shiprocket> accounts, MockRestServiceServer[] out) {
+        CustomerPortalProperties.Shiprocket env = account("env@x.test", "env", null);
+        RestClient.Builder builder = RestClient.builder();
+        out[0] = MockRestServiceServer.bindTo(builder).ignoreExpectOrder(true).build();
+        return new ShiprocketAdapter(builder, env, companyId -> accounts.getOrDefault(companyId, env));
+    }
+
+    @Test
+    @DisplayName("each company logs in with its own account and keeps its own token; a changed password logs in again")
+    void perCompanyLogin() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        java.util.Map<UUID, CustomerPortalProperties.Shiprocket> accounts = new java.util.HashMap<>();
+        accounts.put(a, account("a@shop.test", "pa", null));
+        accounts.put(b, account("b@shop.test", "pb", null));
+        MockRestServiceServer[] srv = new MockRestServiceServer[1];
+        ShiprocketAdapter adapter = perCompany(accounts, srv);
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andExpect(content().json("{\"email\":\"a@shop.test\",\"password\":\"pa\"}"))
+                .andRespond(withSuccess("{\"token\":\"tok-a\"}", MediaType.APPLICATION_JSON));
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andExpect(content().json("{\"email\":\"b@shop.test\",\"password\":\"pb\"}"))
+                .andRespond(withSuccess("{\"token\":\"tok-b\"}", MediaType.APPLICATION_JSON));
+        srv[0].expect(requestTo(startsWith("https://sr.test/v1/external/courier/serviceability/"))).andExpect(header("Authorization", "Bearer tok-a"))
+                .andRespond(withSuccess("{\"data\":{\"available_courier_companies\":[]}}", MediaType.APPLICATION_JSON));
+        srv[0].expect(requestTo(startsWith("https://sr.test/v1/external/courier/serviceability/"))).andExpect(header("Authorization", "Bearer tok-b"))
+                .andRespond(withSuccess("{\"data\":{\"available_courier_companies\":[]}}", MediaType.APPLICATION_JSON));
+
+        RateRequest ra = new RateRequest(a, UUID.randomUUID(), "411016", "110001", new BigDecimal("1"), BigDecimal.TEN, BigDecimal.TEN,
+                BigDecimal.TEN, 1, new BigDecimal("100"), RateRequest.PaymentMode.PREPAID);
+        RateRequest rb = new RateRequest(b, ra.customerId(), "411016", "110001", new BigDecimal("1"), BigDecimal.TEN, BigDecimal.TEN,
+                BigDecimal.TEN, 1, new BigDecimal("100"), RateRequest.PaymentMode.PREPAID);
+        adapter.getRates(ra);
+        adapter.getRates(rb);
+        srv[0].verify();
+
+        // Company A changes its password: the next call logs in again with the new one (the old token is not reused).
+        accounts.put(a, account("a@shop.test", "pa2", null));
+        srv[0].reset();
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andExpect(content().json("{\"email\":\"a@shop.test\",\"password\":\"pa2\"}"))
+                .andRespond(withSuccess("{\"token\":\"tok-a2\"}", MediaType.APPLICATION_JSON));
+        srv[0].expect(requestTo(startsWith("https://sr.test/v1/external/courier/serviceability/"))).andExpect(header("Authorization", "Bearer tok-a2"))
+                .andRespond(withSuccess("{\"data\":{\"available_courier_companies\":[]}}", MediaType.APPLICATION_JSON));
+        adapter.getRates(ra);
+        srv[0].verify();
+    }
+
+    @Test
+    @DisplayName("a company whose courier is switched off is not configured, whatever the server has")
+    void perCompanyConfigured() {
+        UUID off = UUID.randomUUID();
+        CustomerPortalProperties.Shiprocket disabled = account("a@shop.test", "pa", null);
+        disabled.setEnabled(false);
+        MockRestServiceServer[] srv = new MockRestServiceServer[1];
+        ShiprocketAdapter adapter = perCompany(java.util.Map.of(off, disabled), srv);
+
+        assertThat(adapter.configured(off)).isFalse();
+        assertThat(adapter.configured(UUID.randomUUID())).isTrue();
+    }
+
+    @Test
+    @DisplayName("connection test: login accepted and the pickup location exists")
+    void connectionOk() {
+        UUID c = UUID.randomUUID();
+        MockRestServiceServer[] srv = new MockRestServiceServer[1];
+        ShiprocketAdapter adapter = perCompany(java.util.Map.of(c, account("a@shop.test", "pa", "PUNE-1")), srv);
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andRespond(withSuccess("{\"token\":\"t\"}", MediaType.APPLICATION_JSON));
+        srv[0].expect(requestTo("https://sr.test/v1/external/settings/company/pickup")).andExpect(header("Authorization", "Bearer t"))
+                .andRespond(withSuccess("{\"data\":{\"shipping_address\":[{\"pickup_location\":\"pune-1\"}]}}", MediaType.APPLICATION_JSON));
+
+        ConnectionTest t = adapter.testConnection(c);
+
+        assertThat(t.ok()).isTrue();
+        srv[0].verify();
+    }
+
+    @Test
+    @DisplayName("connection test: names the pickup location that is not registered, without echoing the password")
+    void connectionPickupMissing() {
+        UUID c = UUID.randomUUID();
+        MockRestServiceServer[] srv = new MockRestServiceServer[1];
+        ShiprocketAdapter adapter = perCompany(java.util.Map.of(c, account("a@shop.test", "pa-secret", "NOPE")), srv);
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andRespond(withSuccess("{\"token\":\"t\"}", MediaType.APPLICATION_JSON));
+        srv[0].expect(requestTo("https://sr.test/v1/external/settings/company/pickup"))
+                .andRespond(withSuccess("{\"data\":{\"shipping_address\":[{\"pickup_location\":\"PUNE-1\"}]}}", MediaType.APPLICATION_JSON));
+
+        ConnectionTest t = adapter.testConnection(c);
+
+        assertThat(t.ok()).isFalse();
+        assertThat(t.message()).contains("NOPE").doesNotContain("pa-secret");
+    }
+
+    @Test
+    @DisplayName("connection test: wrong password and an unreachable Shiprocket are readable failures")
+    void connectionFailures() {
+        UUID c = UUID.randomUUID();
+        MockRestServiceServer[] srv = new MockRestServiceServer[1];
+        ShiprocketAdapter adapter = perCompany(java.util.Map.of(c, account("a@shop.test", "bad", "P")), srv);
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+        assertThat(adapter.testConnection(c).message()).contains("did not accept");
+
+        srv[0].reset();
+        srv[0].expect(requestTo("https://sr.test/v1/external/auth/login")).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+        assertThat(adapter.testConnection(c).message()).contains("error");
     }
 }

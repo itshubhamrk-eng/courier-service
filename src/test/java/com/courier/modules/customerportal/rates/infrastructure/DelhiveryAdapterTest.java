@@ -3,6 +3,7 @@ package com.courier.modules.customerportal.rates.infrastructure;
 import com.courier.modules.customerportal.rates.application.CustomerPortalProperties;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
+import com.courier.modules.customerportal.rates.domain.ConnectionTest;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.LabelResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
@@ -153,5 +154,42 @@ class DelhiveryAdapterTest {
 
         assertThat(label.url()).isEqualTo("https://dlv-labels.s3.amazonaws.com/WB9.pdf");
         server.verify();
+    }
+
+    @Test
+    @DisplayName("per company: each company's own token is sent; the server's token is not used for it")
+    void perCompanyToken() {
+        UUID mine = UUID.randomUUID();
+        CustomerPortalProperties.Delhivery own = new CustomerPortalProperties.Delhivery();
+        own.setEnabled(true);
+        own.setBaseUrl("https://dl.test");
+        own.setToken("company-token");
+        CustomerPortalProperties.Delhivery env = new CustomerPortalProperties.Delhivery();
+        env.setEnabled(true);
+        env.setBaseUrl("https://dl.test");
+        env.setToken("server-token");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer srv = MockRestServiceServer.bindTo(builder).build();
+        DelhiveryAdapter adapter = new DelhiveryAdapter(builder, env, id -> mine.equals(id) ? own : env, 5000);
+        srv.expect(requestTo(startsWith("https://dl.test/c/api/pin-codes/json/"))).andExpect(header("Authorization", "Token company-token"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThat(adapter.testConnection(mine).ok()).isTrue();
+        srv.verify();
+    }
+
+    @Test
+    @DisplayName("connection test: a rejected token and a down courier are readable failures")
+    void connectionFailures() {
+        server.expect(requestTo(startsWith("https://dl.test/c/api/pin-codes/json/")))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withStatus(org.springframework.http.HttpStatus.UNAUTHORIZED));
+        ConnectionTest rejected = adapter.testConnection(UUID.randomUUID());
+        assertThat(rejected.ok()).isFalse();
+        assertThat(rejected.message()).contains("did not accept");
+
+        server.reset();
+        server.expect(requestTo(startsWith("https://dl.test/c/api/pin-codes/json/")))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withStatus(org.springframework.http.HttpStatus.BAD_GATEWAY));
+        assertThat(adapter.testConnection(UUID.randomUUID()).message()).contains("HTTP 502");
     }
 }

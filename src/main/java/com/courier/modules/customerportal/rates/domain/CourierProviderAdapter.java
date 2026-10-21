@@ -19,7 +19,20 @@ public interface CourierProviderAdapter {
     /** False when credentials/contract are missing: the provider is then shown as "not configured". */
     boolean configured();
 
+    /** Whether this company can use the provider. Env-configured providers answer the same for every company. */
+    default boolean configured(java.util.UUID companyId) {
+        return configured();
+    }
+
     ProviderResult getRates(RateRequest request);
+
+    /**
+     * Makes one cheap authenticated call with the company's saved credentials, to tell its administrator whether the courier
+     * accepts them. Must not throw for a provider failure and must not put credentials in the message.
+     */
+    default ConnectionTest testConnection(java.util.UUID companyId) {
+        return ConnectionTest.failed(displayName() + " connections cannot be tested yet.");
+    }
 
     /**
      * Books one service of a frozen quote. Must classify honestly: REJECTED only when the provider certainly
