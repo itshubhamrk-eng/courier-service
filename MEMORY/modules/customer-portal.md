@@ -215,6 +215,28 @@ Full review table, tests and residual risks: `docs/SECURITY.md` in the portal re
 - First things to check on the dev server: sign in as a portal customer, compare rates (OCCPL network works without any
   provider account), book via OCCPL network (creates a pickup), open the shipment, then connect Shiprocket/Delhivery in staging.
 
+## Courier integrations (company-owned courier accounts)
+
+A company administrator connects the company's own courier accounts in courier-web (Administration > Courier Integrations).
+- `GET /api/v1/courier-integrations` (every courier, state, form fields), `PUT /{code}` (`{enabled, values}`), `POST /{code}/test`,
+  `DELETE /{code}` (disconnect). COMPANY_ADMIN only (`@PreAuthorize` in `CourierIntegrationService`); always the caller's own company.
+- Table `courier_integrations` (V129): one row per company + courier; plain fields in `settings_json`, secret fields as one JSON
+  object AES-GCM encrypted with `SECRETS_ENCRYPTION_KEY` (`CourierSecretsCodec`, decrypted by hand so an unreadable secret cannot break
+  loading the row). Secrets are never returned: the view says only `set`. A blank secret on save keeps the stored one.
+- `CourierCatalog` lists the couriers and their fields. Shiprocket (email, password, pickupLocation) and Delhivery (token,
+  pickupLocation) are connectable; Blue Dart and Ekart are listed `available=false` (no integration code) and refused with 422.
+  Base URLs are NOT fields (a company must not be able to point the server at an arbitrary host); they stay in the environment.
+- `CourierCredentials` resolves per call, by the company of the request: saved account wins (a saved-but-disabled account switches the courier
+  off for that company even if the server has env settings); no saved account falls back to `app.customer-portal.*` env settings;
+  an unreadable secret or database error counts as "not connected". Adapters take a `Function<UUID, settings>`; `configured(companyId)`
+  replaces `configured()` in the comparison. Shiprocket logins are cached per distinct account (hash of email + password).
+- `testConnection(companyId)` on adapters: Shiprocket logs in afresh and (best effort) checks the pickup location exists
+  (`GET /v1/external/settings/company/pickup`, response shape unverified, read defensively); Delhivery makes one pincode lookup with the token
+  (pickup location can only be checked at booking). Tests need a saved, enabled account, are limited by `ProviderCallLimiter`, and the
+  outcome is stored (`last_test_*`, cleared when a secret changes). Audited: `COURIER_INTEGRATION_SAVED/TESTED/DISCONNECTED`.
+- Not yet verified: against MySQL, or with real Shiprocket/Delhivery accounts. To add Blue Dart / Ekart: write the adapter, add the
+  provider to `CourierCatalog` with `available=true`, and register the bean; the screen needs no change.
+
 ## Known gaps after phase 1
 
 - Customer accounts live in `users`, so staff **User Management** lists them too, and a company admin
