@@ -8,7 +8,7 @@ Courier Management backend: Java 21, Spring Boot 3, MySQL 8, Redis. Split from `
   image (tags: commit SHA and `dev`), deploys it to the dev server, smoke-tests it, and the server rolls back by itself if the
   container does not become healthy. Roll back by hand with *Run workflow* on `Release` and a full commit SHA. One-time setup
   (deploy key, secrets, variables): OCCPL repository, `infra/vps/RUNBOOK.md`, section 9, step 14.
-- The web app lives in [`courier-web`](https://github.com/itshubhamrk-eng/courier-web); its nginx forwards `/api/` to a host named `backend`.
+- The web app lives in [`courier-web`](https://github.com/occplsoftech/courier-web); its nginx forwards `/api/` to a host named `backend`.
 - Project notes (architecture, modules, changelog): `MEMORY/`.
 
 ## OCCPL platform integration (off by default)

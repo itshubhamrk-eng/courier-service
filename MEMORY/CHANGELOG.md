@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Repository moved to the occplsoftech account
+
+- The repository (and `courier-web`) moved from `itshubhamrk-eng` to `occplsoftech`. The `Release` workflow already names the image from the repository owner, so it now publishes `ghcr.io/occplsoftech/courier-service`. README link to `courier-web` updated. The deploy key and `dev` environment are set up per the OCCPL runbook, section 9, step 14.
+
 ## 2026-10-19 — Release flow: `CI` on pull requests, `Release` on main (replaces the `Image` workflow)
 
 - `.github/workflows/ci.yml`: unit tests (Java 21) and an image build (not pushed) on every pull request.
