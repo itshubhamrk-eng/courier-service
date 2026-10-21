@@ -164,7 +164,7 @@ public class AuthController {
     public ApiResponse<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request,
                                             HttpServletRequest httpRequest) {
 
-        passwordService.forgotPassword(request.companyId(), request.email(), clientIp(httpRequest));
+        passwordService.forgotPassword(request.companyId(), request.companyCode(), request.email(), clientIp(httpRequest));
 
         // Deliberately identical wording in every case.
         return ApiResponse.success(
