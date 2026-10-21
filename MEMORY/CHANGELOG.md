@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Customer portal phase 2: dashboard, pincode lookup, reset by company code
+
+- `GET /api/v1/customer-portal/dashboard` (counts by stage and recent shipments of the signed-in customer, via new `ShipmentPortalQueries` on `shipments.business_customer_id`) and `GET /api/v1/customer-portal/pincodes/{pincode}` (city/district and the pincode master's OCCPL network flags).
+- `POST /api/v1/auth/forgot-password` accepts `companyCode` as an alternative to `companyId` (exactly one of them required).
+- Frontend: new repository `e-commerce-business` (Angular 20) with sign-in, activation, reset, dashboard, shipment form and profile.
+- Tests: 10 new (dashboard grouping, pincode lookup, reset by code).
+
 ## 2026-10-21 — Customer portal phase 1: customer accounts, scope gate, booking schema (V128)
 
 - New module `customerportal` for the separate customer web app (`occplsoftech/e-commerce-business`). Full design, decisions and phases: `MEMORY/modules/customer-portal.md`.

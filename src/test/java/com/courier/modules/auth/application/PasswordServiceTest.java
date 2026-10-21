@@ -116,6 +116,28 @@ class PasswordServiceTest {
     }
 
     @Test
+    @DisplayName("the company may be named by its code (customer portal login form)")
+    void forgotByCompanyCode() {
+        when(companyDirectory.findByCode("OCCPL"))
+                .thenReturn(Optional.of(new CompanyDirectoryPort.CompanyRef(companyId, "OCCPL", true, null, null)));
+        when(userRepository.findByEmail("ops@acme.test")).thenReturn(Optional.of(user));
+
+        passwordService.forgotPassword(null, " OCCPL ", "ops@acme.test", "10.0.0.1");
+
+        verify(resetTokenRepository).save(any(PasswordResetToken.class));
+    }
+
+    @Test
+    @DisplayName("an unknown company code completes silently")
+    void forgotUnknownCompanyCodeIsSilent() {
+        when(companyDirectory.findByCode("NOPE")).thenReturn(Optional.empty());
+
+        passwordService.forgotPassword(null, "NOPE", "ops@acme.test", "10.0.0.1");
+
+        verify(resetTokenRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("a known email issues exactly one token and sends the link")
     void forgotKnownEmailIssuesToken() {
         when(userRepository.findByEmail("ops@acme.test")).thenReturn(Optional.of(user));

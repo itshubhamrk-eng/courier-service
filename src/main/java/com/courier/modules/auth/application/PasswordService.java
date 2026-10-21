@@ -65,9 +65,19 @@ public class PasswordService {
      */
     @Transactional
     public void forgotPassword(UUID companyId, String rawEmail, String ipAddress) {
+        forgotPassword(companyId, null, rawEmail, ipAddress);
+    }
+
+    /** Same, with the company named by id or, when the id is absent, by its code. */
+    @Transactional
+    public void forgotPassword(UUID companyId, String companyCode, String rawEmail, String ipAddress) {
         String email = User.normaliseEmail(rawEmail);
 
-        Optional<CompanyDirectoryPort.CompanyRef> company = companyDirectory.findById(companyId)
+        Optional<CompanyDirectoryPort.CompanyRef> company = (companyId != null
+                ? companyDirectory.findById(companyId)
+                : companyCode == null || companyCode.isBlank()
+                        ? Optional.<CompanyDirectoryPort.CompanyRef>empty()
+                        : companyDirectory.findByCode(companyCode.trim()))
                 .filter(CompanyDirectoryPort.CompanyRef::active);
 
         if (company.isEmpty()) {

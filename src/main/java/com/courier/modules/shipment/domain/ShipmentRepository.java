@@ -421,4 +421,23 @@ public interface ShipmentRepository extends JpaRepository<Shipment, UUID>,
          *  depending on the dialect path; callers normalise via {@code toInstant}. */
         Object getEnteredAt();
     }
+
+    /** Customer portal dashboard: one business customer's shipments per status. */
+    @Query("select s.status as status, count(s) as total from Shipment s "
+            + "where s.companyId = :companyId and s.businessCustomerId = :customerId group by s.status")
+    List<StatusCount> countByStatusForBusinessCustomer(@Param("companyId") UUID companyId,
+                                                       @Param("customerId") UUID customerId);
+
+    /** Customer portal: one business customer's shipments, newest first. */
+    @Query("select s from Shipment s where s.companyId = :companyId and s.businessCustomerId = :customerId "
+            + "order by s.createdAt desc")
+    List<Shipment> findRecentForBusinessCustomer(@Param("companyId") UUID companyId,
+                                                 @Param("customerId") UUID customerId,
+                                                 Pageable page);
+
+    interface StatusCount {
+        ShipmentStatus getStatus();
+
+        long getTotal();
+    }
 }

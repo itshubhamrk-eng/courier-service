@@ -59,6 +59,16 @@ ownership and bookings.
 |---|---|---|
 | GET | `/api/v1/customer-portal/profile` | CUSTOMER — own customer, company name, addresses |
 | POST/GET/DELETE | `/api/v1/customers/{id}/portal-access` | COMPANY_ADMIN |
+| GET | `/api/v1/customer-portal/dashboard` | CUSTOMER — counts by stage + 5 recent shipments (phase 2) |
+| GET | `/api/v1/customer-portal/pincodes/{pincode}` | CUSTOMER — city/district + OCCPL network flags; 422 malformed, `known=false` unknown (phase 2) |
+
+`POST /api/v1/auth/forgot-password` also accepts `companyCode` instead of `companyId` (phase 2): the portal
+login form knows the company only by its code.
+
+Dashboard stages: booked = BOOKED + READY_FOR_MANIFEST; in transit = MANIFEST_CREATED + DISPATCHED + IN_SCAN +
+OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to the customer by
+`shipments.business_customer_id` (`ShipmentPortalQueries`). `pendingBookings` is 0 until portal bookings exist
+(phase 4: bookings not yet a shipment — submitting or outcome unknown).
 
 ## Schema (V128)
 
@@ -83,7 +93,7 @@ ownership and bookings.
 ## Phases
 
 1. Architecture, customer authorization, data model — **done** (this file).
-2. Portal repo: login, dashboard, shipment form, validation.
+2. Portal repo: login, dashboard, shipment form, validation — **done** (backend: dashboard, pincode lookup, forgot-password by code).
 3. Provider adapters (`CourierProviderAdapter`: serviceability, rates, book, track, label, cancel),
    OCCPL network adapter, Shiprocket/Delhivery adapters (mocked tests, sandbox when credentials exist),
    `/customer-portal/rates/compare`, markup administration.
