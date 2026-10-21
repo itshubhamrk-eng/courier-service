@@ -89,6 +89,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // Customer portal (e-commerce-business): customer accounts only. The
+                        // reverse — customer accounts kept out of everything else — is
+                        // CustomerScopeFilter below.
+                        .requestMatchers("/api/v1/customer-portal/**").hasRole(Roles.CUSTOMER)
                         // "Login as branch". The authoritative check is @PreAuthorize on
                         // AuthService#impersonateBranch; this is the outer gate. Matched
                         // before the company-impersonation rule below since both share the
@@ -151,6 +155,8 @@ public class SecurityConfig {
                 // The order is load-bearing: CompanyResolutionFilter reads the SecurityContext.
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(companyResolutionFilter, JwtAuthenticationFilter.class)
+                // A CUSTOMER principal may reach only the customer portal and auth endpoints.
+                .addFilterAfter(new CustomerScopeFilter(objectMapper), CompanyResolutionFilter.class)
                 // Last in the chain: by the time it runs, the principal and company are
                 // both bound, so it can log "who, from where" without any lookup of its own.
                 .addFilterAfter(activityLoggingFilter, CompanyResolutionFilter.class);

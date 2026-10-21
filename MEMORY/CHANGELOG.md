@@ -8,6 +8,16 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Customer portal phase 1: customer accounts, scope gate, booking schema (V128)
+
+- New module `customerportal` for the separate customer web app (`occplsoftech/e-commerce-business`). Full design, decisions and phases: `MEMORY/modules/customer-portal.md`.
+- `users.customer_id` links a `CUSTOMER`-role account to one business customer. `POST/GET/DELETE /api/v1/customers/{id}/portal-access` (COMPANY_ADMIN) creates it (PENDING, temporary password once, activation email), shows it, disables it (sessions revoked).
+- `GET /api/v1/customer-portal/profile`: the signed-in customer's own profile and addresses. The customer is resolved from the account on every request (`CurrentCustomerResolver`), never from the request.
+- **Scope gate** `CustomerScopeFilter`: a `CUSTOMER` principal may call only `/api/v1/customer-portal/**` and `/api/v1/auth/**`; `/api/v1/customer-portal/**` requires `CUSTOMER`. Needed because many staff reads are `isAuthenticated()`.
+- Emailed links for customer accounts use `app.auth.customer-portal-base-url` (`CUSTOMER_PORTAL_BASE_URL`), falling back to `app-base-url`.
+- V128 also creates `pricing_markup_rules`, `rate_quotes`, `rate_quote_options`, `portal_bookings` for the rate comparison and booking phases (no code uses them yet).
+- Tests: 28 new (gate, resolver, access service, provisioning, link base). Not verified against a live database or a running server yet.
+
 ## 2026-10-21 — Repository moved to the occplsoftech account
 
 - The repository (and `courier-web`) moved from `itshubhamrk-eng` to `occplsoftech`. The `Release` workflow already names the image from the repository owner, so it now publishes `ghcr.io/occplsoftech/courier-service`. README link to `courier-web` updated. The deploy key and `dev` environment are set up per the OCCPL runbook, section 9, step 14.

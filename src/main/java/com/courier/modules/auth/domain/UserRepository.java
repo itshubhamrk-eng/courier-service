@@ -34,6 +34,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * be another company's account even when two companies share an email address (the same person administers
      * several of them). It does not depend on the Hibernate filter.
      */
+    /** The customer-portal account of one business customer, if any (V128 {@code customer_id}). */
+    @Query("select u from User u where u.customerId = :customerId and u.companyId = :companyId")
+    Optional<User> findByCustomerIdWithinCompany(@Param("customerId") UUID customerId,
+                                                 @Param("companyId") UUID companyId);
+
     @Query("select u from User u where u.email = :email and u.companyId = :companyId")
     Optional<User> findByEmailWithinCompany(@Param("email") String email, @Param("companyId") UUID companyId);
 

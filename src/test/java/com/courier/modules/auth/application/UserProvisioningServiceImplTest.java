@@ -1,6 +1,8 @@
 package com.courier.modules.auth.application;
 
 import com.courier.modules.auth.application.UserProvisioningService.NewBranchUserCommand;
+import com.courier.modules.auth.application.UserProvisioningService.NewCustomerPortalUserCommand;
+import com.courier.modules.auth.application.UserProvisioningService.ProvisionedUser;
 import com.courier.modules.auth.application.UserProvisioningService.ProvisionedBranchUser;
 import com.courier.modules.auth.application.port.CompanyRoleProvisioningPort;
 import com.courier.modules.auth.domain.Role;
@@ -25,6 +27,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -164,5 +167,54 @@ class UserProvisioningServiceImplTest {
 
         assertThat(saved().getCompanyId()).isNull(); // stamped by the entity listener, not here
         assertThat(CompanyContext.isSet()).isFalse();
+    }
+
+    // ------------------------------------------------------------ customer portal
+
+    private NewCustomerPortalUserCommand customerCommand(UUID customerId) {
+        return new NewCustomerPortalUserCommand(TENANT, customerId, "Buyer@Shop.test", "Asha", "Patil", "9876543210");
+    }
+
+    @Test
+    @DisplayName("customer portal account: CUSTOMER role only, linked to the customer, PENDING, activation sent")
+    void customerPortalAccount() {
+        UUID customerId = UUID.randomUUID();
+        when(userRepository.findByCustomerIdWithinCompany(customerId, TENANT)).thenReturn(Optional.empty());
+
+        ProvisionedUser result = service.provisionCustomerPortalUser(customerCommand(customerId));
+
+        User user = saved();
+        assertThat(user.getRoles()).containsExactly(Role.CUSTOMER);
+        assertThat(user.getCustomerId()).isEqualTo(customerId);
+        assertThat(user.getStatus()).isEqualTo(UserStatus.PENDING);
+        assertThat(user.isEmailVerified()).isFalse();
+        assertThat(user.getEmail()).isEqualTo("buyer@shop.test");
+        assertThat(encoder.matches(result.temporaryPassword(), user.getPasswordHash())).isTrue();
+        assertThat(result.activationEmailSent()).isTrue();
+        verify(emailVerificationService).issue(user);
+        verify(companyRoleProvisioningPort, never()).ensureCompanyAdminRole(any(), any());
+    }
+
+    @Test
+    @DisplayName("customer portal account: a customer gets at most one account")
+    void customerPortalAccountOnlyOnce() {
+        UUID customerId = UUID.randomUUID();
+        when(userRepository.findByCustomerIdWithinCompany(customerId, TENANT))
+                .thenReturn(Optional.of(User.builder().email("old@shop.test").build()));
+
+        assertThatThrownBy(() -> service.provisionCustomerPortalUser(customerCommand(customerId)))
+                .isInstanceOf(DuplicateResourceException.class);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("customer portal account: an address already used in the company is refused")
+    void customerPortalAccountDuplicateEmail() {
+        UUID customerId = UUID.randomUUID();
+        when(userRepository.findByCustomerIdWithinCompany(customerId, TENANT)).thenReturn(Optional.empty());
+        when(userRepository.existsByEmail("buyer@shop.test")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.provisionCustomerPortalUser(customerCommand(customerId)))
+                .isInstanceOf(DuplicateResourceException.class);
     }
 }
