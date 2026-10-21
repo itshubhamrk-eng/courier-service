@@ -8,7 +8,11 @@ import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
+import com.courier.modules.customerportal.rates.domain.LabelResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.customerportal.rates.domain.ShipmentRef;
+import com.courier.modules.customerportal.rates.domain.TrackingEvent;
+import com.courier.modules.customerportal.rates.domain.TrackingResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -24,10 +28,12 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Shiprocket (aggregator): one call returns every courier Shiprocket can use for the lane, with rates.
@@ -143,6 +149,92 @@ public class ShiprocketAdapter implements CourierProviderAdapter {
         } catch (RestClientException | IllegalStateException e) {
             return BookingOutcome.unknown(shipmentId, "The order was created but the courier could not be assigned yet. Our team will complete it.");
         }
+    }
+
+    /** {@code GET /v1/external/courier/track/awb/{awb}}: Shiprocket's activities for the AWB, newest first. */
+    @Override
+    public TrackingResult track(ShipmentRef ref) {
+        if (!configured()) {
+            return TrackingResult.unavailable("Shiprocket is not connected, so tracking is not available.");
+        }
+        if (ref.awbNumber() == null || ref.awbNumber().isBlank()) {
+            return TrackingResult.unavailable("No tracking number has been assigned yet.");
+        }
+        try {
+            JsonNode body = http.get().uri("/v1/external/courier/track/awb/{awb}", ref.awbNumber())
+                    .header("Authorization", "Bearer " + token())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(JsonNode.class);
+            return parseTracking(body, ref.awbNumber());
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 401) {
+                token = null;
+            }
+            log.warn("Shiprocket tracking failed: HTTP {}", e.getStatusCode().value());
+            return TrackingResult.unavailable("Shiprocket did not return tracking right now. Please try again later.");
+        } catch (RestClientException | IllegalStateException e) {
+            log.warn("Shiprocket tracking failed: {}", e.getClass().getSimpleName());
+            return TrackingResult.unavailable("Shiprocket could not be reached. Please try again later.");
+        }
+    }
+
+    static TrackingResult parseTracking(JsonNode body, String awb) {
+        JsonNode data = body == null ? null : body.path("tracking_data");
+        if (data == null || data.isMissingNode()) {
+            return TrackingResult.unavailable("Shiprocket did not return tracking right now. Please try again later.");
+        }
+        List<TrackingEvent> events = new ArrayList<>();
+        for (JsonNode a : data.path("shipment_track_activities")) {
+            String status = text(a, "activity");
+            events.add(new TrackingEvent(ProviderTimes.parse(text(a, "date")),
+                    status != null ? status : ProviderTimes.label(text(a, "sr-status-label")), text(a, "location"), null));
+        }
+        JsonNode track = data.path("shipment_track").path(0);
+        String status = text(track, "current_status");
+        if (events.isEmpty() && status == null) {
+            return TrackingResult.unavailable("No tracking updates from the courier yet.");
+        }
+        events.sort(Comparator.comparing(TrackingEvent::at, Comparator.nullsFirst(Comparator.<Instant>naturalOrder())).reversed());
+        return TrackingResult.of(status != null ? status : events.get(0).status(), awb,
+                events.isEmpty() ? null : events.get(0).location(), events);
+    }
+
+    /** {@code POST /v1/external/courier/generate/label}: Shiprocket answers with a PDF URL it hosts. */
+    @Override
+    public LabelResult label(ShipmentRef ref) {
+        if (!configured()) {
+            return LabelResult.notAvailable("Shiprocket is not connected, so labels are not available.");
+        }
+        if (ref.providerOrderRef() == null || ref.awbNumber() == null) {
+            return LabelResult.notAvailable("The label is available once a tracking number is assigned.");
+        }
+        try {
+            JsonNode body = http.post().uri("/v1/external/courier/generate/label")
+                    .header("Authorization", "Bearer " + token())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("shipment_id", List.of(ref.providerOrderRef())))
+                    .retrieve()
+                    .body(JsonNode.class);
+            String url = body == null ? null : text(body, "label_url");
+            return url != null ? LabelResult.at(url)
+                    : LabelResult.notAvailable("Shiprocket has not generated the label yet. Please try again shortly.");
+        } catch (RestClientException | IllegalStateException e) {
+            log.warn("Shiprocket label failed: {}", e.getClass().getSimpleName());
+            return LabelResult.notAvailable("Shiprocket could not provide the label right now. Please try again later.");
+        }
+    }
+
+    @Override
+    public Set<String> labelHosts() {
+        return Set.of(".amazonaws.com", ".shiprocket.in", ".shiprocket.co");
+    }
+
+    private static String text(JsonNode n, String field) {
+        JsonNode v = n == null ? null : n.get(field);
+        if (v == null || v.isNull()) return null;
+        String s = v.asText().trim();
+        return s.isEmpty() ? null : s;
     }
 
     static Map<String, Object> orderBody(BookingRequest b, String pickupLocation) {

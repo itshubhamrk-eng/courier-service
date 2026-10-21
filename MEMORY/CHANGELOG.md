@@ -8,6 +8,22 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Customer portal phase 5: history, tracking, labels, address book
+
+- `GET /api/v1/customer-portal/bookings` (paged, status filter), `GET /bookings/{id}` (full detail with parties,
+  parcel and frozen charges), `GET /bookings/{id}/tracking` (live from the provider), `GET /bookings/{id}/label`
+  (PDF streamed by the server; provider URL never sent to the browser; https + provider host allowlist, no redirects,
+  PDF check), `GET /shipments/{id}/tracking` (counter shipments). Tracking/label: 30 calls a minute per account.
+- `CourierProviderAdapter.track/label/labelHosts`: OCCPL network (pickup steps + shipment history with branch names;
+  labels at the branch), Shiprocket (track by AWB, generate label), Delhivery (packages JSON, packing slip PDF).
+- Address book: `GET/POST /customer-portal/addresses`, `PUT/DELETE /addresses/{id}` (`CustomerPortalAddressBook`):
+  pincode-based, one default pickup/delivery, duplicates refused, optimistic version, remove = INACTIVE. Profile
+  addresses now show pincode/city/district instead of ids.
+- `PickupService.findByNumberForCustomer` replaces the unused `findForCustomer`; `PincodeService.codeOf`;
+  `ShipmentPortalQueries.timeline`. No migration.
+- Tests: adapters (tracking/label), `PortalShipmentServiceTest`, `LabelFetcherTest`, `CustomerPortalAddressBookTest`,
+  `ProviderTimesTest`. Full suite green.
+
 ## 2026-10-21 — Customer portal phase 4: idempotent booking
 
 - `POST /api/v1/customer-portal/shipments` (Idempotency-Key) and `GET /api/v1/customer-portal/bookings/{id}`: one booking per key, quote row-locked, expiry and double-booking refused with 409 codes (`QUOTE_EXPIRED`, `QUOTE_ALREADY_BOOKED`, `IDEMPOTENCY_KEY_REUSED`), provider called outside transactions, outcomes BOOKED / FAILED / OUTCOME_UNKNOWN (never auto-retried). Audited.

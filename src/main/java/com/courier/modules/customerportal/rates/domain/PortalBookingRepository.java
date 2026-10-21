@@ -34,4 +34,13 @@ public interface PortalBookingRepository extends JpaRepository<PortalBooking, UU
             + "order by b.createdAt desc")
     List<PortalBooking> findForCustomer(@Param("companyId") UUID companyId, @Param("customerId") UUID customerId,
                                         org.springframework.data.domain.Pageable page);
+
+    @Query(value = "select b from PortalBooking b where b.companyId = :companyId and b.customerId = :customerId "
+            + "and b.status in :statuses order by b.createdAt desc",
+            countQuery = "select count(b) from PortalBooking b where b.companyId = :companyId "
+                    + "and b.customerId = :customerId and b.status in :statuses")
+    org.springframework.data.domain.Page<PortalBooking> findPage(@Param("companyId") UUID companyId,
+                                                                 @Param("customerId") UUID customerId,
+                                                                 @Param("statuses") Collection<PortalBooking.Status> statuses,
+                                                                 org.springframework.data.domain.Pageable page);
 }

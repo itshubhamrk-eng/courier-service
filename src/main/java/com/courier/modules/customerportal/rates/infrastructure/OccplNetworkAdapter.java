@@ -7,7 +7,11 @@ import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
+import com.courier.modules.customerportal.rates.domain.LabelResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.customerportal.rates.domain.ShipmentRef;
+import com.courier.modules.customerportal.rates.domain.TrackingEvent;
+import com.courier.modules.customerportal.rates.domain.TrackingResult;
 import com.courier.modules.customerpricing.application.ZoneRateService;
 import com.courier.modules.customerpricing.application.ZoneRateService.Quote;
 import com.courier.modules.customerpricing.application.ZoneRateService.QuoteCommand;
@@ -16,14 +20,18 @@ import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.domain.Pincode;
 import com.courier.modules.pickup.application.PickupService;
 import com.courier.modules.pickup.domain.PickupRequest;
+import com.courier.modules.pickup.domain.PickupStatus;
+import com.courier.modules.shipment.application.ShipmentPortalQueries;
 import com.courier.shared.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,6 +56,7 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
     private final PincodeService pincodes;
     private final ZoneRateService zoneRates;
     private final PickupService pickups;
+    private final ShipmentPortalQueries shipments;
 
     @Override public String code() { return CODE; }
     @Override public String displayName() { return "OCCPL Network"; }
@@ -101,6 +110,64 @@ public class OccplNetworkAdapter implements CourierProviderAdapter {
         } catch (ApiException e) {
             // Local validation refused it inside our own transaction: nothing was created.
             return BookingOutcome.rejected("PICKUP_REFUSED", e.getMessage());
+        }
+    }
+
+    /**
+     * The pickup's own steps, then — once the branch has booked the parcel — the shipment's status history.
+     * Both are this customer's only (the pickup is looked up by number for the signed-in customer).
+     */
+    @Override
+    public TrackingResult track(ShipmentRef ref) {
+        Optional<PickupRequest> found = ref.providerOrderRef() == null ? Optional.empty()
+                : pickups.findByNumberForCustomer(ref.providerOrderRef(), ref.customerId());
+        if (found.isEmpty()) {
+            return TrackingResult.unavailable("This pickup request could not be found. Please contact support.");
+        }
+        PickupRequest p = found.get();
+        List<TrackingEvent> events = new ArrayList<>();
+        event(events, p.getCreatedAt(), "Pickup requested", p.getCity(), "Pickup " + p.getPickupNo() + " requested");
+        event(events, p.getAssignedAt(), "Pickup assigned", null, "Assigned to a pickup team");
+        event(events, p.getAcceptedAt(), "Pickup accepted", null, null);
+        event(events, p.getStartedAt(), "Out for pickup", null, null);
+        event(events, p.getPickedUpAt(), "Picked up", p.getCity(), null);
+        if (p.getStatus() == PickupStatus.CANCELLED) {
+            event(events, p.getUpdatedAt(), "Pickup cancelled", null, p.getCancelReason());
+        } else if (p.getStatus() == PickupStatus.FAILED) {
+            event(events, p.getUpdatedAt(), "Pickup failed", null, p.getFailReason());
+        }
+        String status = ProviderTimes.label("PICKUP_" + p.getStatus().name());
+        String trackingNumber = null;
+        String location = null;
+        if (p.getShipmentId() != null) {
+            Optional<ShipmentPortalQueries.PortalTimeline> timeline =
+                    shipments.timeline(ref.companyId(), ref.customerId(), p.getShipmentId());
+            if (timeline.isPresent()) {
+                ShipmentPortalQueries.PortalTimeline t = timeline.get();
+                trackingNumber = t.shipment().trackingNumber() != null ? t.shipment().trackingNumber()
+                        : t.shipment().shipmentNumber();
+                status = ProviderTimes.label(t.shipment().status().name());
+                for (ShipmentPortalQueries.PortalStep step : t.steps()) {
+                    event(events, step.at(), ProviderTimes.label(step.status().name()), step.branchName(), null);
+                    if (step.branchName() != null) {
+                        location = step.branchName();
+                    }
+                }
+            }
+        }
+        events.sort(Comparator.comparing(TrackingEvent::at).reversed());
+        return TrackingResult.of(status, trackingNumber, location, events);
+    }
+
+    @Override
+    public LabelResult label(ShipmentRef ref) {
+        return LabelResult.notAvailable("OCCPL prints the shipping label when your parcel is booked at the branch.");
+    }
+
+    private static void event(List<TrackingEvent> events, Instant at, String status, String location,
+                              String description) {
+        if (at != null) {
+            events.add(new TrackingEvent(at, status, location, description));
         }
     }
 

@@ -8,7 +8,11 @@ import com.courier.modules.customerportal.rates.domain.ChargeLine;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
+import com.courier.modules.customerportal.rates.domain.LabelResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.customerportal.rates.domain.ShipmentRef;
+import com.courier.modules.customerportal.rates.domain.TrackingEvent;
+import com.courier.modules.customerportal.rates.domain.TrackingResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -24,8 +28,11 @@ import java.util.Map;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Delhivery B2C: pincode serviceability ({@code GET /c/api/pin-codes/json/}) and shipping charges
@@ -136,6 +143,88 @@ public class DelhiveryAdapter implements CourierProviderAdapter {
         } catch (RestClientException e) {
             return BookingOutcome.unknown(b.reference(), "Delhivery's answer could not be read. Our team will check whether it was booked.");
         }
+    }
+
+    /** {@code GET /api/v1/packages/json/?waybill=}: the current status and every scan, newest first. */
+    @Override
+    public TrackingResult track(ShipmentRef ref) {
+        if (!configured()) {
+            return TrackingResult.unavailable("Delhivery is not connected, so tracking is not available.");
+        }
+        if (ref.awbNumber() == null || ref.awbNumber().isBlank()) {
+            return TrackingResult.unavailable("No tracking number has been assigned yet.");
+        }
+        try {
+            JsonNode body = http.get()
+                    .uri(u -> u.path("/api/v1/packages/json/").queryParam("waybill", ref.awbNumber()).build())
+                    .header("Authorization", "Token " + config.getToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(JsonNode.class);
+            return parseTracking(body, ref.awbNumber());
+        } catch (RestClientException e) {
+            log.warn("Delhivery tracking failed: {}", e.getClass().getSimpleName());
+            return TrackingResult.unavailable("Delhivery did not return tracking right now. Please try again later.");
+        }
+    }
+
+    static TrackingResult parseTracking(JsonNode body, String awb) {
+        JsonNode shipment = body == null ? null : body.path("ShipmentData").path(0).path("Shipment");
+        if (shipment == null || shipment.isMissingNode()) {
+            return TrackingResult.unavailable("No tracking updates from Delhivery yet.");
+        }
+        List<TrackingEvent> events = new ArrayList<>();
+        for (JsonNode scan : shipment.path("Scans")) {
+            JsonNode d = scan.path("ScanDetail");
+            events.add(new TrackingEvent(ProviderTimes.parse(text(d, "ScanDateTime")), text(d, "Scan"),
+                    text(d, "ScannedLocation"), text(d, "Instructions")));
+        }
+        events.sort(Comparator.comparing(TrackingEvent::at, Comparator.nullsFirst(Comparator.<Instant>naturalOrder())).reversed());
+        JsonNode status = shipment.path("Status");
+        String current = text(status, "Status");
+        String location = text(status, "StatusLocation");
+        if (current == null && events.isEmpty()) {
+            return TrackingResult.unavailable("No tracking updates from Delhivery yet.");
+        }
+        return TrackingResult.of(current != null ? current : events.get(0).status(), awb,
+                location != null ? location : (events.isEmpty() ? null : events.get(0).location()), events);
+    }
+
+    /** {@code GET /api/p/packing_slip?wbns=&pdf=true}: Delhivery answers with a link to the label PDF. */
+    @Override
+    public LabelResult label(ShipmentRef ref) {
+        if (!configured()) {
+            return LabelResult.notAvailable("Delhivery is not connected, so labels are not available.");
+        }
+        if (ref.awbNumber() == null || ref.awbNumber().isBlank()) {
+            return LabelResult.notAvailable("The label is available once a tracking number is assigned.");
+        }
+        try {
+            JsonNode body = http.get()
+                    .uri(u -> u.path("/api/p/packing_slip").queryParam("wbns", ref.awbNumber()).queryParam("pdf", "true").build())
+                    .header("Authorization", "Token " + config.getToken())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(JsonNode.class);
+            String url = body == null ? null : text(body.path("packages").path(0), "pdf_download_link");
+            return url != null ? LabelResult.at(url)
+                    : LabelResult.notAvailable("Delhivery has not generated the label yet. Please try again shortly.");
+        } catch (RestClientException e) {
+            log.warn("Delhivery label failed: {}", e.getClass().getSimpleName());
+            return LabelResult.notAvailable("Delhivery could not provide the label right now. Please try again later.");
+        }
+    }
+
+    @Override
+    public Set<String> labelHosts() {
+        return Set.of(".amazonaws.com", ".delhivery.com");
+    }
+
+    private static String text(JsonNode n, String field) {
+        JsonNode v = n == null ? null : n.get(field);
+        if (v == null || v.isNull()) return null;
+        String s = v.asText().trim();
+        return s.isEmpty() ? null : s;
     }
 
     static Map<String, Object> manifest(BookingRequest b, String pickupLocation, BigDecimal grams) {

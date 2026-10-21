@@ -6,7 +6,11 @@ import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ProviderRate;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
+import com.courier.modules.customerportal.rates.domain.LabelResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.customerportal.rates.domain.ShipmentRef;
+import com.courier.modules.customerportal.rates.domain.TrackingEvent;
+import com.courier.modules.customerportal.rates.domain.TrackingResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +24,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
@@ -157,5 +162,74 @@ class ShiprocketAdapterTest {
         server.reset();
         server.expect(requestTo("https://sr.test/v1/external/orders/create/adhoc")).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
         assertThat(adapter.book(booking()).result()).isEqualTo(BookingOutcome.Result.UNKNOWN);
+    }
+
+    private static ShipmentRef ref(String orderRef, String awb) {
+        return new ShipmentRef(UUID.randomUUID(), UUID.randomUUID(), "booking-1", orderRef, awb, null);
+    }
+
+    @Test
+    @DisplayName("tracking: maps activities newest first with the current status")
+    void tracksAwb() {
+        server.expect(requestTo("https://sr.test/v1/external/auth/login"))
+                .andRespond(withSuccess("{\"token\":\"tkn\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://sr.test/v1/external/courier/track/awb/AWB123"))
+                .andExpect(header("Authorization", "Bearer tkn"))
+                .andRespond(withSuccess("""
+                        {"tracking_data":{"track_status":1,
+                          "shipment_track":[{"awb_code":"AWB123","current_status":"In Transit"}],
+                          "shipment_track_activities":[
+                            {"date":"2026-10-20 09:15:00","activity":"Picked up","location":"Pune"},
+                            {"date":"2026-10-21 18:40:00","activity":"Reached hub","location":"Delhi"}]}}""",
+                        MediaType.APPLICATION_JSON));
+
+        TrackingResult t = adapter.track(ref("SR-1", "AWB123"));
+
+        assertThat(t.available()).isTrue();
+        assertThat(t.status()).isEqualTo("In Transit");
+        assertThat(t.currentLocation()).isEqualTo("Delhi");
+        assertThat(t.events()).extracting(TrackingEvent::status).containsExactly("Reached hub", "Picked up");
+        assertThat(t.events().get(1).at()).isEqualTo(java.time.Instant.parse("2026-10-20T03:45:00Z"));
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("tracking: no AWB means nothing to ask Shiprocket")
+    void noAwbNoCall() {
+        assertThat(adapter.track(ref("SR-1", null)).available()).isFalse();
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("tracking: a Shiprocket error is a readable 'not available', not an exception")
+    void trackingError() {
+        server.expect(requestTo("https://sr.test/v1/external/auth/login"))
+                .andRespond(withSuccess("{\"token\":\"tkn\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://sr.test/v1/external/courier/track/awb/AWB123"))
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+        TrackingResult t = adapter.track(ref("SR-1", "AWB123"));
+
+        assertThat(t.available()).isFalse();
+        assertThat(t.message()).contains("try again");
+    }
+
+    @Test
+    @DisplayName("label: asks for the shipment's label and returns Shiprocket's URL")
+    void label() {
+        server.expect(requestTo("https://sr.test/v1/external/auth/login"))
+                .andRespond(withSuccess("{\"token\":\"tkn\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://sr.test/v1/external/courier/generate/label"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"shipment_id\":[\"SR-1\"]}"))
+                .andRespond(withSuccess("{\"label_created\":1,\"label_url\":\"https://kr-ship.s3.amazonaws.com/l.pdf\"}",
+                        MediaType.APPLICATION_JSON));
+
+        LabelResult label = adapter.label(ref("SR-1", "AWB123"));
+
+        assertThat(label.available()).isTrue();
+        assertThat(label.url()).isEqualTo("https://kr-ship.s3.amazonaws.com/l.pdf");
+        assertThat(adapter.labelHosts()).contains(".amazonaws.com");
+        server.verify();
     }
 }

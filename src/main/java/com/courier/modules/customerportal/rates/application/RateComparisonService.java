@@ -305,7 +305,7 @@ public class RateComparisonService {
                 q.getDeclaredValue(), q.getPaymentMode(), available, unavailable);
     }
 
-    private static List<BreakdownLine> lines(RateQuoteOption o) {
+    static List<BreakdownLine> lines(RateQuoteOption o) {
         if (o.getBreakdown() == null) return List.of();
         return o.getBreakdown().stream().map(m -> new BreakdownLine(String.valueOf(m.get("label")),
                 String.valueOf(m.get("component")), new BigDecimal(String.valueOf(m.get("amount"))))).toList();

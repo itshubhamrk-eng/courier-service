@@ -61,8 +61,8 @@ public interface PickupService {
      */
     PickupRequest createFromCustomerPortal(SaveCommand command);
 
-    /** The status of a portal-created pickup for its own customer (empty for anyone else's). */
-    java.util.Optional<PickupRequest> findForCustomer(UUID id, UUID customerId);
+    /** A pickup by its number, for its own customer only (empty for anyone else's). Portal tracking. */
+    java.util.Optional<PickupRequest> findByNumberForCustomer(String pickupNo, UUID customerId);
 
     record SaveCommand(UUID customerId, String contactName, String contactMobile, String addressLine,
                        String city, UUID districtId, String pincode, Integer expectedParcels,

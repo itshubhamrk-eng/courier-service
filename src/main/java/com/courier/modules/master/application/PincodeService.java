@@ -52,4 +52,7 @@ public interface PincodeService extends MasterDataService<Pincode, PincodeComman
      * @return empty when no pincode with this code is on file
      */
     java.util.Optional<PincodeLocation> location(String code);
+
+    /** The 6-digit code of a pincode id, without the company check {@link #getById} applies. Empty when unknown. */
+    java.util.Optional<String> codeOf(java.util.UUID pincodeId);
 }

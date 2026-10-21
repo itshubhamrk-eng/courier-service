@@ -4,7 +4,11 @@ import com.courier.modules.customerportal.rates.application.CustomerPortalProper
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
+import com.courier.modules.customerportal.rates.domain.LabelResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.customerportal.rates.domain.ShipmentRef;
+import com.courier.modules.customerportal.rates.domain.TrackingEvent;
+import com.courier.modules.customerportal.rates.domain.TrackingResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -97,5 +101,57 @@ class DelhiveryAdapterTest {
         server.expect(requestTo("https://dl.test/api/cmu/create.json"))
                 .andRespond(withSuccess("{\"success\":false,\"packages\":[{\"remarks\":[\"Pin not serviceable\"]}]}", MediaType.APPLICATION_JSON));
         assertThat(adapter.book(ShiprocketAdapterTest.booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
+    }
+
+    private static ShipmentRef ref(String awb) {
+        return new ShipmentRef(UUID.randomUUID(), UUID.randomUUID(), "booking-1", "booking-1", awb, null);
+    }
+
+    @Test
+    @DisplayName("tracking: current status and scans, newest first")
+    void tracks() {
+        server.expect(requestTo(startsWith("https://dl.test/api/v1/packages/json/")))
+                .andExpect(queryParam("waybill", "WB9"))
+                .andExpect(header("Authorization", "Token tok"))
+                .andRespond(withSuccess("""
+                        {"ShipmentData":[{"Shipment":{"AWB":"WB9",
+                          "Status":{"Status":"In Transit","StatusLocation":"Delhi_Hub"},
+                          "Scans":[
+                            {"ScanDetail":{"Scan":"Manifested","ScanDateTime":"2026-10-20T10:00:00.000","ScannedLocation":"Pune"}},
+                            {"ScanDetail":{"Scan":"In Transit","ScanDateTime":"2026-10-21T08:30:00.000","ScannedLocation":"Delhi_Hub","Instructions":"Shipment arrived"}}]}}]}""",
+                        MediaType.APPLICATION_JSON));
+
+        TrackingResult t = adapter.track(ref("WB9"));
+
+        assertThat(t.available()).isTrue();
+        assertThat(t.status()).isEqualTo("In Transit");
+        assertThat(t.currentLocation()).isEqualTo("Delhi_Hub");
+        assertThat(t.events()).extracting(TrackingEvent::status).containsExactly("In Transit", "Manifested");
+        assertThat(t.events().get(0).description()).isEqualTo("Shipment arrived");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("tracking: an empty answer is 'no updates yet'")
+    void noUpdates() {
+        server.expect(requestTo(startsWith("https://dl.test/api/v1/packages/json/")))
+                .andRespond(withSuccess("{\"ShipmentData\":[]}", MediaType.APPLICATION_JSON));
+
+        assertThat(adapter.track(ref("WB9")).available()).isFalse();
+    }
+
+    @Test
+    @DisplayName("label: the packing slip's PDF link")
+    void label() {
+        server.expect(requestTo(startsWith("https://dl.test/api/p/packing_slip")))
+                .andExpect(queryParam("wbns", "WB9"))
+                .andExpect(queryParam("pdf", "true"))
+                .andRespond(withSuccess("{\"packages\":[{\"pdf_download_link\":\"https://dlv-labels.s3.amazonaws.com/WB9.pdf\"}]}",
+                        MediaType.APPLICATION_JSON));
+
+        LabelResult label = adapter.label(ref("WB9"));
+
+        assertThat(label.url()).isEqualTo("https://dlv-labels.s3.amazonaws.com/WB9.pdf");
+        server.verify();
     }
 }

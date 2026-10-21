@@ -5,7 +5,7 @@ and the quote/markup/booking schema. Rate shopping, markup service, booking, tra
 are later phases — see "Phases".
 **Package:** `com.courier.modules.customerportal` (new). Small extensions in `auth` (`users.customer_id`,
 customer-portal accounts) and `customer` (`CustomerPortalLookup`).
-**Frontend:** separate repository `occplsoftech/e-commerce-business` (Angular, same conventions as
+**Frontend:** separate repository `occplsoftech/e-commerce-bussines` (Angular, same conventions as
 `courier-web`, deployed separately).
 
 ## What it is
@@ -98,7 +98,7 @@ OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to th
    OCCPL network adapter, Shiprocket/Delhivery adapters (mocked tests, sandbox when credentials exist),
    `/customer-portal/rates/compare`, markup administration.
 4. Booking with idempotency and confirmation — **done**.
-5. Shipment history, tracking, label download, profile/addresses.
+5. Shipment history, tracking, label download, profile/addresses — **done** (cancellation not included).
 6. Tests, security review, docs, environment and deployment.
 
 ## Rate comparison (phase 3)
@@ -168,12 +168,45 @@ Per provider:
 
 Dashboard `pendingBookings` now counts the customer's PENDING/SUBMITTING/OUTCOME_UNKNOWN bookings.
 
+## After booking (phase 5)
+
+`PortalShipmentService` (own bookings only, 404 otherwise):
+- `GET /customer-portal/bookings?status=&page=&size=` - history, newest first, size <= 50; route, recipient, service,
+  tracking number and amount from the booking + its frozen quote/option (`PortalBookingStore.page`, three queries a page).
+- `GET /customer-portal/bookings/{id}` - detail: parties and parcel from the quote snapshot, frozen charge lines,
+  `labelDownloadable` (BOOKED and the provider has label hosts; OCCPL network never - labels are printed at the branch).
+  The phase-4 `BookingView` is still the answer of `POST /shipments`.
+- `GET /customer-portal/bookings/{id}/tracking` - asked of the provider on every call, not stored
+  (`CourierProviderAdapter.track`). Only BOOKED bookings call out. A tracking number issued later (OCCPL: when the branch
+  books the parcel) is written back to the booking. OCCPL network: pickup steps from `pickup_requests` (looked up by
+  pickup number for the signed-in customer) + the shipment's status history with branch names
+  (`ShipmentPortalQueries.timeline`, no staff remarks or user ids). Shiprocket `GET /v1/external/courier/track/awb/{awb}`;
+  Delhivery `GET /api/v1/packages/json/?waybill=`. Provider times without an offset are read as IST.
+- `GET /customer-portal/bookings/{id}/label` - PDF streamed by the server (`Content-Disposition: attachment`,
+  `no-store`). The provider URL (`portal_bookings.label_url`) never reaches the browser. Stored URL tried first; if it no
+  longer answers it is cleared and the provider asked once (`CourierProviderAdapter.label`: Shiprocket
+  `POST /v1/external/courier/generate/label`, Delhivery `GET /api/p/packing_slip?wbns=&pdf=true`). `LabelFetcher` guards
+  the download: https only, the provider's own `labelHosts()` (exact host or `.suffix`), no redirects, <= 10 MB, body
+  must start with `%PDF`.
+- Tracking + label calls share `ProviderCallLimiter`: 30 a minute per account (in memory, like the compare limiter).
+- `GET /customer-portal/shipments/{shipmentId}/tracking` - counter-booked shipments (dashboard list), customer's own.
+
+Address book (`CustomerPortalAddressBook` in module customer, no staff gate, called only by `customerportal`):
+`GET/POST /customer-portal/addresses`, `PUT/DELETE /customer-portal/addresses/{id}`. The customer types a pincode; the
+geography ids come from the pincode master (`PincodeService.location`), so a pincode not on file cannot be saved (the
+table stores ids only - the booking form still accepts any pincode). One default pickup and one default delivery
+address; usage PICKUP/DELIVERY/BOTH must agree with the defaults; duplicate lines+pincode refused; at most 50; optimistic
+`expectedVersion` (409). Remove = INACTIVE (kept for history). Profile addresses now show pincode, area, city, district
+instead of ids. Audited as `CUSTOMER_ADDRESS_CREATED/UPDATED` with `source=CUSTOMER_PORTAL`.
+
+Not verified against live providers: the tracking/label response fields above are as documented by Shiprocket and
+Delhivery and are read defensively; check them against the accounts' own responses before enabling.
+
 ## Known gaps after phase 1
 
 - Customer accounts live in `users`, so staff **User Management** lists them too, and a company admin
   could add a staff role to one. The scope gate still keeps such an account inside the portal
   (fail-closed); hiding customer accounts from staff screens is a follow-up.
-- Profile addresses carry geography ids, not names; name resolution comes with phase 5 (profile and
-  address management).
+- ~~Profile addresses carry geography ids~~ - fixed in phase 5.
 - Not yet verified against MySQL or a running server: V128 and the security chain are covered by unit
   tests only (`CustomerScopeFilterTest` drives the filter, not the full chain).
