@@ -105,6 +105,15 @@ public class User extends CompanyOwnedEntity {
     @Column(name = "hub_id", columnDefinition = "BINARY(16)")
     private UUID hubId;
 
+    /**
+     * The business customer a {@link Role#CUSTOMER} account acts for (V128); NULL for every
+     * staff account. The customer portal resolves the acting customer from this column on
+     * every request — see {@code customerportal.application.CurrentCustomerResolver}.
+     */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "customer_id", columnDefinition = "BINARY(16)")
+    private UUID customerId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status;

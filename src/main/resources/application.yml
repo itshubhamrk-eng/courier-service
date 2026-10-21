@@ -150,6 +150,8 @@ app:
     verification-token-ttl: 24h
     verification-resend-window: 5m
     app-base-url: ${APP_BASE_URL:http://localhost:3000}
+    # Customer portal (e-commerce-business): emailed links for CUSTOMER accounts. Blank = app-base-url.
+    customer-portal-base-url: ${CUSTOMER_PORTAL_BASE_URL:}
     password:
       min-length: 10
       # BCrypt ignores bytes past 72; capping here stops a long passphrase from

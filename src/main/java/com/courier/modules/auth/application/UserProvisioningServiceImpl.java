@@ -127,6 +127,62 @@ public class UserProvisioningServiceImpl implements UserProvisioningService {
 
     @Override
     @Transactional
+    public ProvisionedUser provisionCustomerPortalUser(NewCustomerPortalUserCommand command) {
+        UUID companyId = command.companyId();
+        String email = User.normaliseEmail(command.email());
+
+        return CompanyContext.runAs(companyId, () -> {
+            if (userRepository.findByCustomerIdWithinCompany(command.customerId(), companyId).isPresent()) {
+                throw new DuplicateResourceException("Customer portal account", "customerId",
+                        command.customerId().toString());
+            }
+            if (userRepository.existsByEmail(email)) {
+                throw new DuplicateResourceException("User", "email", email);
+            }
+
+            String temporaryPassword = generatePassword();
+            passwordPolicy.validate(temporaryPassword, email, null, passwordEncoder::matches);
+
+            User user = userRepository.save(User.builder()
+                    .email(email)
+                    .passwordHash(passwordEncoder.encode(temporaryPassword))
+                    .firstName(command.firstName())
+                    .lastName(command.lastName())
+                    .phone(command.phone())
+                    // PENDING until the activation link (to the customer portal) is followed,
+                    // exactly like a provisioned company admin.
+                    .status(UserStatus.PENDING)
+                    .roles(EnumSet.of(Role.CUSTOMER))
+                    .customerId(command.customerId())
+                    .emailVerified(false)
+                    .build());
+
+            boolean emailSent;
+            try {
+                emailVerificationService.issue(user);
+                emailSent = true;
+            } catch (RuntimeException e) {
+                log.error("Could not send the activation email for customer portal user {}; "
+                        + "the account exists and the link must be reissued", user.getId(), e);
+                emailSent = false;
+            }
+
+            log.info("Provisioned customer portal user {} for customer {} in company {}",
+                    user.getId(), command.customerId(), companyId);
+            auditService.record(AuditAction.USER_CREATED, "User", user.getId(),
+                    Map.of("email", email,
+                            "companyId", companyId.toString(),
+                            "customerId", command.customerId().toString(),
+                            "roles", List.of(Role.CUSTOMER.name()),
+                            "provisioned", true,
+                            "passwordGenerated", true));
+
+            return new ProvisionedUser(user.getId(), email, temporaryPassword, emailSent);
+        });
+    }
+
+    @Override
+    @Transactional
     public ProvisionedBranchUser provisionPlatformUser(NewPlatformUserCommand command) {
         UUID companyId = command.companyId();
         String email = User.normaliseEmail(command.email());

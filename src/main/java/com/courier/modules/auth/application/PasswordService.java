@@ -102,7 +102,7 @@ public class PasswordService {
                 .ipAddress(ipAddress)
                 .build());
 
-        String link = UriComponentsBuilder.fromUriString(properties.getAppBaseUrl())
+        String link = UriComponentsBuilder.fromUriString(properties.linkBaseUrlFor(user))
                 .path("/reset-password")
                 .queryParam("token", rawToken)
                 .build()

@@ -95,6 +95,25 @@ public interface UserProvisioningService {
      * @param phone       may be null
      * @param roles       roles to grant, typically {@code COMPANY_ADMIN} alone
      */
+    /**
+     * Creates the customer-portal account of a business customer: role {@code CUSTOMER},
+     * {@code users.customer_id} set, created {@code PENDING} with a temporary password
+     * returned once to the company admin and an activation email whose link points at the
+     * customer portal. Validating the customer itself is the caller's job.
+     *
+     * @throws com.courier.shared.exception.DuplicateResourceException if the address is
+     *         already registered within the company, or the customer already has an account
+     */
+    ProvisionedUser provisionCustomerPortalUser(NewCustomerPortalUserCommand command);
+
+    record NewCustomerPortalUserCommand(UUID companyId,
+                                        UUID customerId,
+                                        String email,
+                                        String firstName,
+                                        String lastName,
+                                        String phone) {
+    }
+
     record NewAdminCommand(UUID companyId,
                            String companyName,
                            String email,

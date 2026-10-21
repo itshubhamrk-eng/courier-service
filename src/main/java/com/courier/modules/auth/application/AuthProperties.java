@@ -63,6 +63,12 @@ public class AuthProperties {
     /** Base URL the emailed links point at. */
     private String appBaseUrl = "http://localhost:3000";
 
+    /**
+     * Base URL of the customer portal (e-commerce-business). Links emailed to a
+     * {@code CUSTOMER} account point here; blank falls back to {@link #appBaseUrl}.
+     */
+    private String customerPortalBaseUrl;
+
     @NotNull
     private PasswordPolicyProperties password = new PasswordPolicyProperties();
 
@@ -124,5 +130,14 @@ public class AuthProperties {
             throw new IllegalStateException(
                     "%s must be a positive duration (got %s)".formatted(key, value));
         }
+    }
+
+    /** Where an emailed link for this account must point: the customer portal for a customer account. */
+    public String linkBaseUrlFor(com.courier.modules.auth.domain.User user) {
+        boolean customer = user.getRoles() != null
+                && user.getRoles().contains(com.courier.modules.auth.domain.Role.CUSTOMER);
+        return customer && customerPortalBaseUrl != null && !customerPortalBaseUrl.isBlank()
+                ? customerPortalBaseUrl
+                : appBaseUrl;
     }
 }

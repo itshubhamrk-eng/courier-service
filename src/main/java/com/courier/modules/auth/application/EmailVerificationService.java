@@ -108,7 +108,7 @@ public class EmailVerificationService {
                 .expiresAt(Instant.now().plus(properties.getVerificationTokenTtl()))
                 .build());
 
-        return UriComponentsBuilder.fromUriString(properties.getAppBaseUrl())
+        return UriComponentsBuilder.fromUriString(properties.linkBaseUrlFor(user))
                 .path("/verify-email")
                 .queryParam("token", rawToken)
                 .build()
