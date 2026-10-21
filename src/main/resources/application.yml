@@ -124,6 +124,25 @@ server:
 
 app:
   version: 0.1.0
+  # Customer portal (e-commerce-business): rate comparison and external couriers. See
+  # MEMORY/modules/customer-portal.md. External couriers stay "not connected" until enabled with credentials.
+  customer-portal:
+    quote-validity: ${CUSTOMER_PORTAL_QUOTE_VALIDITY:30m}
+    provider-timeout: ${CUSTOMER_PORTAL_PROVIDER_TIMEOUT:10s}
+    volumetric-divisor: ${CUSTOMER_PORTAL_VOLUMETRIC_DIVISOR:5000}
+    default-markup-percent: ${CUSTOMER_PORTAL_DEFAULT_MARKUP_PERCENT:10}
+    markup-gst-percent: ${CUSTOMER_PORTAL_MARKUP_GST_PERCENT:18}
+    occpl-network-gst-percent: ${CUSTOMER_PORTAL_OCCPL_NETWORK_GST_PERCENT:18}
+    shiprocket:
+      enabled: ${SHIPROCKET_ENABLED:false}
+      base-url: ${SHIPROCKET_BASE_URL:https://apiv2.shiprocket.in}
+      email: ${SHIPROCKET_API_EMAIL:}
+      password: ${SHIPROCKET_API_PASSWORD:}
+    delhivery:
+      enabled: ${DELHIVERY_ENABLED:false}
+      base-url: ${DELHIVERY_BASE_URL:https://track.delhivery.com}
+      token: ${DELHIVERY_API_TOKEN:}
+      pickup-location: ${DELHIVERY_PICKUP_LOCATION:}
   bootstrap:
     # First start only: creates a SUPER_ADMIN when this email is not yet a platform operator. Set both, start once,
     # then remove them. The password must satisfy the normal password policy. No default on purpose.

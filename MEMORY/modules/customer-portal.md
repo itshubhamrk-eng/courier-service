@@ -94,12 +94,45 @@ OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to th
 
 1. Architecture, customer authorization, data model — **done** (this file).
 2. Portal repo: login, dashboard, shipment form, validation — **done** (backend: dashboard, pincode lookup, forgot-password by code).
-3. Provider adapters (`CourierProviderAdapter`: serviceability, rates, book, track, label, cancel),
+3. **done (rates)** — Provider adapters (`CourierProviderAdapter`: rates now; book, track, label, cancel join in phases 4-5),
    OCCPL network adapter, Shiprocket/Delhivery adapters (mocked tests, sandbox when credentials exist),
    `/customer-portal/rates/compare`, markup administration.
 4. Booking with idempotency and confirmation.
 5. Shipment history, tracking, label download, profile/addresses.
 6. Tests, security review, docs, environment and deployment.
+
+## Rate comparison (phase 3)
+
+`POST /api/v1/customer-portal/rates/compare` (CUSTOMER; pickup, delivery, package) and
+`GET /api/v1/customer-portal/quotes/{quoteId}` (own quotes only, else 404). `RateComparisonService`:
+
+1. Validates (pincodes, weight > 0 up to 1000 kg with 3 dp, dimensions with 1 dp, inches converted to cm,
+   1-999 packages, value > 0, PREPAID/COD) and rate-limits (20 comparisons/minute/account, in memory).
+2. Asks every `CourierProviderAdapter`: OCCPL network on the request thread (it needs the bound company and
+   principal), external ones in parallel on `courierRateExecutor` with `provider-timeout` (+2 s grace). A
+   provider that fails, times out or is not connected becomes an "unavailable" row with a readable reason.
+3. Prices each service with `MarkupCalculator` (see Pricing rules) and stores `rate_quotes` +
+   `rate_quote_options` (available and unavailable) in one short transaction (`RateQuoteStore`), valid for
+   `quote-validity` (30 min).
+
+| Provider | Code | State |
+|---|---|---|
+| OCCPL network | `OCCPL_NETWORK` | Live. Customer's zone rate card (`ZoneRateService.calculate`), pickup/delivery/COD flags from the pincode master (`PincodeService.location`, new). Actual weight only (the rate card has no volumetric rule). No markup; GST at `occpl-network-gst-percent` (keep equal to the booking branch's GST). |
+| Shiprocket | `SHIPROCKET` | Built, off until `SHIPROCKET_ENABLED=true` + `SHIPROCKET_API_EMAIL`/`SHIPROCKET_API_PASSWORD`. Login token cached 9 days; `GET /v1/external/courier/serviceability/`. Field names follow Shiprocket's docs and **must be checked against the account's real responses** before enabling (tax inclusion of `rate` in particular). |
+| Delhivery | `DELHIVERY` | Built, off until `DELHIVERY_ENABLED=true` + `DELHIVERY_API_TOKEN` (`DELHIVERY_BASE_URL` = staging for tests). Pincode check, then charges for Surface and Express on max(actual, volumetric) grams; GST split out from `total_amount - gross_amount`. **Verify on staging.** |
+| Blue Dart, Ekart | `BLUEDART`, `EKART` | Not connected (no contract/API docs). Always "not connected yet". |
+
+Markup administration: `GET/POST /api/v1/pricing-markup-rules` (COMPANY_ADMIN). Resolution = most specific rule
+in force (customer+provider > customer > provider > all); none = `default-markup-percent` (10) on FREIGHT. A new
+rule closes the open rule of the same scope at its start; created/closed are audited
+(`PRICING_MARKUP_RULE_CREATED/CLOSED`). Markup GST: `markup-gst-percent` (18) — **confirm with the accountant**.
+
+Settings (`app.customer-portal.*`, env): `CUSTOMER_PORTAL_QUOTE_VALIDITY`, `CUSTOMER_PORTAL_PROVIDER_TIMEOUT`,
+`CUSTOMER_PORTAL_VOLUMETRIC_DIVISOR`, `CUSTOMER_PORTAL_DEFAULT_MARKUP_PERCENT`, `CUSTOMER_PORTAL_MARKUP_GST_PERCENT`,
+`CUSTOMER_PORTAL_OCCPL_NETWORK_GST_PERCENT`, `SHIPROCKET_*`, `DELHIVERY_*`. Credentials never leave the server.
+
+Not verified yet: no live/sandbox call to Shiprocket or Delhivery (no credentials); OCCPL network pricing not
+exercised against real zone data; schema validation of the new entities not run against MySQL.
 
 ## Known gaps after phase 1
 

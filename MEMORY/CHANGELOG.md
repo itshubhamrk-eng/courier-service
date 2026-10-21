@@ -8,6 +8,15 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Customer portal phase 3: rate comparison and configurable markup
+
+- `POST /api/v1/customer-portal/rates/compare`, `GET /api/v1/customer-portal/quotes/{id}`: genuine rates from OCCPL's network (customer zone rate card) and connected couriers, priced with markup (external only) and tax, stored as an immutable quote (30 min). Unavailable providers are listed with the reason.
+- Adapters behind `CourierProviderAdapter`: `OccplNetworkAdapter` (live), `ShiprocketAdapter`, `DelhiveryAdapter` (off until credentials; verify field names on the accounts), `NotConfiguredAdapter` for Blue Dart and Ekart.
+- `pricing_markup_rules` administration `GET/POST /api/v1/pricing-markup-rules` (COMPANY_ADMIN), audited; default 10 % on freight when no rule applies. `MarkupCalculator` (BigDecimal, HALF_UP, markup only on configured components, never on tax, GST on the markup).
+- `PincodeService.location(code)` (new): geography ids + network flags of a pincode.
+- V128 corrected before first use: VARCHAR instead of CHAR for pincodes, currency and request hash (schema validation).
+- Tests: 24 new (calculator, rules, adapters with mocked HTTP, comparison service incl. timeouts, partial availability, ownership, rate limit).
+
 ## 2026-10-21 — Customer portal phase 2: dashboard, pincode lookup, reset by company code
 
 - `GET /api/v1/customer-portal/dashboard` (counts by stage and recent shipments of the signed-in customer, via new `ShipmentPortalQueries` on `shipments.business_customer_id`) and `GET /api/v1/customer-portal/pincodes/{pincode}` (city/district and the pincode master's OCCPL network flags).
