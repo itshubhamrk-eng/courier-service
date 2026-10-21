@@ -53,8 +53,8 @@ CREATE TABLE rate_quotes (
     company_id            BINARY(16)    NOT NULL,
     customer_id           BINARY(16)    NOT NULL,
     requested_by          BINARY(16)    NOT NULL,
-    pickup_pincode        CHAR(6)       NOT NULL,
-    delivery_pincode      CHAR(6)       NOT NULL,
+    pickup_pincode        VARCHAR(6)    NOT NULL,
+    delivery_pincode      VARCHAR(6)    NOT NULL,
     -- Pickup/delivery contacts and addresses, packages and dimensions as submitted.
     request_json          JSON          NOT NULL,
     actual_weight_kg      DECIMAL(10,3) NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE rate_quote_options (
     markup_amount         DECIMAL(14,2) NULL,
     tax_amount            DECIMAL(14,2) NULL,
     total_amount          DECIMAL(14,2) NULL,
-    currency              CHAR(3)       NOT NULL DEFAULT 'INR',
+    currency              VARCHAR(3)    NOT NULL DEFAULT 'INR',
     -- Every charge line as the provider returned it, plus the markup and tax lines.
     breakdown_json        JSON          NULL,
     provider_quote_ref    VARCHAR(120)  NULL,
@@ -126,13 +126,13 @@ CREATE TABLE portal_bookings (
     quote_option_id     BINARY(16)    NOT NULL,
     -- Sent by the portal per "Confirm booking" click; a repeat returns the same booking.
     idempotency_key     VARCHAR(80)   NOT NULL,
-    request_hash        CHAR(64)      NOT NULL,
+    request_hash        VARCHAR(64)   NOT NULL,
     provider_code       VARCHAR(40)   NOT NULL,
     -- PENDING -> SUBMITTING -> BOOKED | FAILED | OUTCOME_UNKNOWN; OUTCOME_UNKNOWN is never
     -- retried automatically (the provider may have accepted it).
     status              VARCHAR(20)   NOT NULL,
     total_amount        DECIMAL(14,2) NOT NULL,
-    currency            CHAR(3)       NOT NULL DEFAULT 'INR',
+    currency            VARCHAR(3)    NOT NULL DEFAULT 'INR',
     shipment_id         BINARY(16)    NULL,
     provider_order_ref  VARCHAR(120)  NULL,
     awb_number          VARCHAR(60)   NULL,
