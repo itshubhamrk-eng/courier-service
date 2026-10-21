@@ -99,7 +99,7 @@ OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to th
    `/customer-portal/rates/compare`, markup administration.
 4. Booking with idempotency and confirmation — **done**.
 5. Shipment history, tracking, label download, profile/addresses — **done** (cancellation not included).
-6. Tests, security review, docs, environment and deployment.
+6. Tests, security review, docs, environment and deployment — **done** (see "Security review and deployment"; unverified items listed there).
 
 ## Rate comparison (phase 3)
 
@@ -201,6 +201,19 @@ instead of ids. Audited as `CUSTOMER_ADDRESS_CREATED/UPDATED` with `source=CUSTO
 
 Not verified against live providers: the tracking/label response fields above are as documented by Shiprocket and
 Delhivery and are read defensively; check them against the accounts' own responses before enabling.
+
+## Security review and deployment (phase 6)
+
+Full review table, tests and residual risks: `docs/SECURITY.md` in the portal repository. Backend facts worth keeping:
+- Every customer-facing service starts with `CurrentCustomerResolver.require()`; staff-facing ones
+  (`CustomerPortalAccessService`, `MarkupRuleService`) carry `@PreAuthorize(COMPANY_ADMIN)`. `/auth/impersonate/**` is gated in
+  `SecurityConfig` and again in `AuthService`.
+- Rate limits (`CompareRateLimiter` 20/min, `ProviderCallLimiter` 30/min, one `SlidingWindowLimiter`) are per instance, in memory.
+- Deployment lives in the OCCPL repository (`infra/vps`): `courier-portal` service, `PORTAL_HOST` Caddy block, backend env
+  `APP_CORS_ALLOWEDORIGINS` (courier + portal hosts), `CUSTOMER_PORTAL_BASE_URL`, `SHIPROCKET_*`, `DELHIVERY_*`;
+  `courier-deploy.sh portal <sha>`. Runbook section 7a.
+- First things to check on the dev server: sign in as a portal customer, compare rates (OCCPL network works without any
+  provider account), book via OCCPL network (creates a pickup), open the shipment, then connect Shiprocket/Delhivery in staging.
 
 ## Known gaps after phase 1
 
