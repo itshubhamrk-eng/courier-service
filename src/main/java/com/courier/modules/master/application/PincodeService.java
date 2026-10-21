@@ -43,4 +43,16 @@ public interface PincodeService extends MasterDataService<Pincode, PincodeComman
      * @return empty when no pincode with this code is on file
      */
     java.util.Optional<PincodeGeography> geography(String code, java.util.UUID areaId);
+
+    /**
+     * The geography ids of this pincode's primary Area — for pricing a destination by
+     * district/city (the customer portal's own-network rate). Same read audience as
+     * {@link #getById}; never creates a row.
+     *
+     * @return empty when no pincode with this code is on file
+     */
+    java.util.Optional<PincodeLocation> location(String code);
+
+    /** The 6-digit code of a pincode id, without the company check {@link #getById} applies. Empty when unknown. */
+    java.util.Optional<String> codeOf(java.util.UUID pincodeId);
 }

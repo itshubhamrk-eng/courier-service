@@ -8,6 +8,52 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Courier integrations (per-company courier accounts)
+
+- V129 `courier_integrations`; `/api/v1/courier-integrations` (list, save, test, disconnect; COMPANY_ADMIN); secrets encrypted
+  and write-only. Shiprocket and Delhivery adapters use the company's own account (else the server's env settings).
+  Blue Dart and Ekart listed as not built yet. Tests: `CourierCredentialsTest`, `CourierIntegrationServiceTest`, adapter tests.
+  UI: courier-web branch `claude/courier-integrations-ui`.
+
+## 2026-10-21 — Customer portal phase 6: review, hardening, deployment
+
+- Security review of the portal (resolver on every customer service, scope gate, impersonation double gate, label SSRF guard,
+  secrets handling); findings and residual risks in the portal repo's `docs/SECURITY.md`. No backend behaviour changed beyond
+  `SlidingWindowLimiterTest`.
+- Deployment config lives in the OCCPL repository (branch `claude/customer-portal-deploy`): portal container, host, CORS, env.
+
+## 2026-10-21 — Customer portal phase 5: history, tracking, labels, address book
+
+- `GET /api/v1/customer-portal/bookings` (paged, status filter), `GET /bookings/{id}` (full detail with parties,
+  parcel and frozen charges), `GET /bookings/{id}/tracking` (live from the provider), `GET /bookings/{id}/label`
+  (PDF streamed by the server; provider URL never sent to the browser; https + provider host allowlist, no redirects,
+  PDF check), `GET /shipments/{id}/tracking` (counter shipments). Tracking/label: 30 calls a minute per account.
+- `CourierProviderAdapter.track/label/labelHosts`: OCCPL network (pickup steps + shipment history with branch names;
+  labels at the branch), Shiprocket (track by AWB, generate label), Delhivery (packages JSON, packing slip PDF).
+- Address book: `GET/POST /customer-portal/addresses`, `PUT/DELETE /addresses/{id}` (`CustomerPortalAddressBook`):
+  pincode-based, one default pickup/delivery, duplicates refused, optimistic version, remove = INACTIVE. Profile
+  addresses now show pincode/city/district instead of ids.
+- `PickupService.findByNumberForCustomer` replaces the unused `findForCustomer`; `PincodeService.codeOf`;
+  `ShipmentPortalQueries.timeline`. No migration.
+- Tests: adapters (tracking/label), `PortalShipmentServiceTest`, `LabelFetcherTest`, `CustomerPortalAddressBookTest`,
+  `ProviderTimesTest`. Full suite green.
+
+## 2026-10-21 — Customer portal phase 4: idempotent booking
+
+- `POST /api/v1/customer-portal/shipments` (Idempotency-Key) and `GET /api/v1/customer-portal/bookings/{id}`: one booking per key, quote row-locked, expiry and double-booking refused with 409 codes (`QUOTE_EXPIRED`, `QUOTE_ALREADY_BOOKED`, `IDEMPOTENCY_KEY_REUSED`), provider called outside transactions, outcomes BOOKED / FAILED / OUTCOME_UNKNOWN (never auto-retried). Audited.
+- `CourierProviderAdapter.book`: OCCPL network creates a pickup request (`PickupService.createFromCustomerPortal`); Shiprocket order + AWB; Delhivery CMU manifest. External adapters need `SHIPROCKET_PICKUP_LOCATION` / `DELHIVERY_PICKUP_LOCATION` to book.
+- Dashboard pending bookings are now real.
+- Tests: 17 new (service, store, adapter bookings incl. half-booked and 4xx/5xx classification).
+
+## 2026-10-21 — Customer portal phase 3: rate comparison and configurable markup
+
+- `POST /api/v1/customer-portal/rates/compare`, `GET /api/v1/customer-portal/quotes/{id}`: genuine rates from OCCPL's network (customer zone rate card) and connected couriers, priced with markup (external only) and tax, stored as an immutable quote (30 min). Unavailable providers are listed with the reason.
+- Adapters behind `CourierProviderAdapter`: `OccplNetworkAdapter` (live), `ShiprocketAdapter`, `DelhiveryAdapter` (off until credentials; verify field names on the accounts), `NotConfiguredAdapter` for Blue Dart and Ekart.
+- `pricing_markup_rules` administration `GET/POST /api/v1/pricing-markup-rules` (COMPANY_ADMIN), audited; default 10 % on freight when no rule applies. `MarkupCalculator` (BigDecimal, HALF_UP, markup only on configured components, never on tax, GST on the markup).
+- `PincodeService.location(code)` (new): geography ids + network flags of a pincode.
+- V128 corrected before first use: VARCHAR instead of CHAR for pincodes, currency and request hash (schema validation).
+- Tests: 24 new (calculator, rules, adapters with mocked HTTP, comparison service incl. timeouts, partial availability, ownership, rate limit).
+
 ## 2026-10-21 — Customer portal phase 2: dashboard, pincode lookup, reset by company code
 
 - `GET /api/v1/customer-portal/dashboard` (counts by stage and recent shipments of the signed-in customer, via new `ShipmentPortalQueries` on `shipments.business_customer_id`) and `GET /api/v1/customer-portal/pincodes/{pincode}` (city/district and the pincode master's OCCPL network flags).

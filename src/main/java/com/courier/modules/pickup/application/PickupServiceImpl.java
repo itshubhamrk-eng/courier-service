@@ -75,6 +75,28 @@ public class PickupServiceImpl implements PickupService {
 
     @Override
     @Transactional
+    public PickupRequest createFromCustomerPortal(SaveCommand c) {
+        UUID companyId = requireCompany();
+        if (c.customerId() == null) {
+            throw new BusinessRuleException("A portal pickup must name its customer.");
+        }
+        PickupRequest p = PickupRequest.builder().pickupNo(nextPickupNo(companyId)).build();
+        apply(p, c);
+        PickupRequest saved = pickups.save(p);
+        auditService.record(AuditAction.PICKUP_CREATED, ENTITY, saved.getId(),
+                Map.of("pickupNo", saved.getPickupNo(), "status", saved.getStatus().name(), "source", "CUSTOMER_PORTAL"));
+        log.info("Pickup {} requested from the customer portal for customer {}", saved.getPickupNo(), c.customerId());
+        return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<PickupRequest> findByNumberForCustomer(String pickupNo, UUID customerId) {
+        return pickups.findByPickupNo(requireCompany(), pickupNo).filter(p -> customerId.equals(p.getCustomerId()));
+    }
+
+    @Override
+    @Transactional
     @PreAuthorize(STAFF)
     public PickupRequest update(UUID id, SaveCommand c) {
         PickupRequest p = load(id);

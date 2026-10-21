@@ -43,6 +43,10 @@ public enum ErrorCode {
     // 405 / 409 / 413 / 415
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method not supported"),
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "Resource already exists"),
+    // Customer portal booking (V128): the client refreshes rates / shows the existing booking.
+    QUOTE_EXPIRED(HttpStatus.CONFLICT, "These rates have expired. Refresh them before booking."),
+    QUOTE_ALREADY_BOOKED(HttpStatus.CONFLICT, "This quote already has a booking."),
+    IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "This request key was already used for a different booking."),
     CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "Resource was modified by another request"),
     FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file exceeds the maximum allowed size"),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type"),

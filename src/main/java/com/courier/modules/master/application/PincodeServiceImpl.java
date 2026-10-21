@@ -162,6 +162,33 @@ public class PincodeServiceImpl extends AbstractMasterDataService<Pincode> imple
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize(READ)
+    public Optional<String> codeOf(UUID pincodeId) {
+        if (pincodeId == null) {
+            return Optional.empty();
+        }
+        return CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID, () -> repository.findById(pincodeId)
+                .filter(p -> GlobalMasters.PLATFORM_COMPANY_ID.equals(p.getCompanyId()))
+                .map(Pincode::getCode));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
+    public Optional<PincodeLocation> location(String code) {
+        return CompanyContext.runAs(GlobalMasters.PLATFORM_COMPANY_ID, () -> repository
+                .findByCodeWithinCompany(code, GlobalMasters.PLATFORM_COMPANY_ID)
+                .map(pincode -> {
+                    Area area = areas.findById(pincode.getAreaId()).orElse(null);
+                    City city = area != null ? cities.findById(area.getCityId()).orElse(null) : null;
+                    return new PincodeLocation(pincode.getId(), pincode.getAreaId(),
+                            city != null ? city.getId() : null, city != null ? city.getDistrictId() : null,
+                            pincode.isServiceable(), pincode.isCodAvailable(), pincode.isOdaApplicable());
+                }));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize(READ)
     public Optional<PincodeGeography> geography(String code) {
         return geography(code, null);
     }
