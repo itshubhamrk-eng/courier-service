@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Customer portal phase 6: review, hardening, deployment
+
+- Security review of the portal (resolver on every customer service, scope gate, impersonation double gate, label SSRF guard,
+  secrets handling); findings and residual risks in the portal repo's `docs/SECURITY.md`. No backend behaviour changed beyond
+  `SlidingWindowLimiterTest`.
+- Deployment config lives in the OCCPL repository (branch `claude/customer-portal-deploy`): portal container, host, CORS, env.
+
 ## 2026-10-21 — Customer portal phase 5: history, tracking, labels, address book
 
 - `GET /api/v1/customer-portal/bookings` (paged, status filter), `GET /bookings/{id}` (full detail with parties,
