@@ -1,5 +1,6 @@
 package com.courier.modules.customerportal.rates.infrastructure;
 
+import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
@@ -7,6 +8,8 @@ import com.courier.modules.customerpricing.application.ZoneRateService;
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.domain.Pincode;
+import com.courier.modules.pickup.application.PickupService;
+import com.courier.modules.pickup.domain.PickupRequest;
 import com.courier.shared.exception.BusinessRuleException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,7 @@ class OccplNetworkAdapterTest {
 
     @Mock private PincodeService pincodes;
     @Mock private ZoneRateService zoneRates;
+    @Mock private PickupService pickups;
     @InjectMocks private OccplNetworkAdapter adapter;
 
     private static final UUID DISTRICT = UUID.randomUUID();
@@ -87,5 +91,32 @@ class OccplNetworkAdapterTest {
         when(pincodes.location("110001")).thenReturn(Optional.empty());
 
         assertThat(adapter.getRates(request()).available()).isFalse();
+    }
+
+    @Test
+    @DisplayName("booking creates a pickup request for the customer, with delivery details for the booking clerk")
+    void booksAsPickup() {
+        served();
+        when(pickups.createFromCustomerPortal(any())).thenAnswer(i -> {
+            PickupService.SaveCommand c = i.getArgument(0);
+            assertThat(c.remarks()).contains("Deliver to Ravi").contains("Quoted total INR 111.80");
+            assertThat(c.remarks().length()).isLessThanOrEqualTo(500);
+            return PickupRequest.builder().pickupNo("PU-0001").build();
+        });
+
+        BookingOutcome o = adapter.book(ShiprocketAdapterTest.booking());
+
+        assertThat(o.result()).isEqualTo(BookingOutcome.Result.BOOKED);
+        assertThat(o.providerOrderRef()).isEqualTo("PU-0001");
+        assertThat(o.awbNumber()).isNull();
+    }
+
+    @Test
+    @DisplayName("a refused pickup is a definite failure (nothing was created)")
+    void pickupRefused() {
+        served();
+        when(pickups.createFromCustomerPortal(any())).thenThrow(new BusinessRuleException("A valid contact mobile is required."));
+
+        assertThat(adapter.book(ShiprocketAdapterTest.booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
     }
 }

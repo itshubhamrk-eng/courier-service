@@ -8,6 +8,13 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Customer portal phase 4: idempotent booking
+
+- `POST /api/v1/customer-portal/shipments` (Idempotency-Key) and `GET /api/v1/customer-portal/bookings/{id}`: one booking per key, quote row-locked, expiry and double-booking refused with 409 codes (`QUOTE_EXPIRED`, `QUOTE_ALREADY_BOOKED`, `IDEMPOTENCY_KEY_REUSED`), provider called outside transactions, outcomes BOOKED / FAILED / OUTCOME_UNKNOWN (never auto-retried). Audited.
+- `CourierProviderAdapter.book`: OCCPL network creates a pickup request (`PickupService.createFromCustomerPortal`); Shiprocket order + AWB; Delhivery CMU manifest. External adapters need `SHIPROCKET_PICKUP_LOCATION` / `DELHIVERY_PICKUP_LOCATION` to book.
+- Dashboard pending bookings are now real.
+- Tests: 17 new (service, store, adapter bookings incl. half-booked and 4xx/5xx classification).
+
 ## 2026-10-21 — Customer portal phase 3: rate comparison and configurable markup
 
 - `POST /api/v1/customer-portal/rates/compare`, `GET /api/v1/customer-portal/quotes/{id}`: genuine rates from OCCPL's network (customer zone rate card) and connected couriers, priced with markup (external only) and tax, stored as an immutable quote (30 min). Unavailable providers are listed with the reason.

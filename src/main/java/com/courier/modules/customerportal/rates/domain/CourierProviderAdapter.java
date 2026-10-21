@@ -2,9 +2,9 @@ package com.courier.modules.customerportal.rates.domain;
 
 /**
  * One courier source behind the customer portal (OCCPL's own network, or an external courier or
- * aggregator). Booking, tracking, labels and cancellation join this interface in the booking
- * phases. Implementations never throw for a provider failure: they answer
- * {@link ProviderResult#unavailable} with a reason the customer may read (no secrets, no stack traces).
+ * aggregator). Implementations never throw for a provider failure: rates answer
+ * {@link ProviderResult#unavailable}, bookings a {@link BookingOutcome}, each with a reason the customer
+ * may read (no secrets, no stack traces). Tracking, labels and cancellation join in the next phase.
  */
 public interface CourierProviderAdapter {
 
@@ -20,4 +20,12 @@ public interface CourierProviderAdapter {
     boolean configured();
 
     ProviderResult getRates(RateRequest request);
+
+    /**
+     * Books one service of a frozen quote. Must classify honestly: REJECTED only when the provider certainly
+     * did not accept it; anything in doubt is UNKNOWN.
+     */
+    default BookingOutcome book(BookingRequest request) {
+        return BookingOutcome.rejected("NOT_SUPPORTED", displayName() + " bookings are not available yet.");
+    }
 }

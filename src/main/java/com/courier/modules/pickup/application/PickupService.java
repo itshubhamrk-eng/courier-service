@@ -54,6 +54,16 @@ public interface PickupService {
 
     PickupRequest cancel(UUID id, String reason);
 
+    /**
+     * A pickup booked by a business customer in the customer portal (OCCPL network service). No
+     * {@code @PreAuthorize}: the portal has resolved the customer from the signed-in account and is the only
+     * caller. Created REQUESTED like a staff-entered one; operations assign and book it as usual.
+     */
+    PickupRequest createFromCustomerPortal(SaveCommand command);
+
+    /** The status of a portal-created pickup for its own customer (empty for anyone else's). */
+    java.util.Optional<PickupRequest> findForCustomer(UUID id, UUID customerId);
+
     record SaveCommand(UUID customerId, String contactName, String contactMobile, String addressLine,
                        String city, UUID districtId, String pincode, Integer expectedParcels,
                        BigDecimal expectedWeightKg, LocalDate preferredDate, String preferredSlot,

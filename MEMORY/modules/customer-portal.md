@@ -97,7 +97,7 @@ OUT_FOR_DELIVERY; delivered, returned, cancelled as is. A shipment belongs to th
 3. **done (rates)** — Provider adapters (`CourierProviderAdapter`: rates now; book, track, label, cancel join in phases 4-5),
    OCCPL network adapter, Shiprocket/Delhivery adapters (mocked tests, sandbox when credentials exist),
    `/customer-portal/rates/compare`, markup administration.
-4. Booking with idempotency and confirmation.
+4. Booking with idempotency and confirmation — **done**.
 5. Shipment history, tracking, label download, profile/addresses.
 6. Tests, security review, docs, environment and deployment.
 
@@ -133,6 +133,40 @@ Settings (`app.customer-portal.*`, env): `CUSTOMER_PORTAL_QUOTE_VALIDITY`, `CUST
 
 Not verified yet: no live/sandbox call to Shiprocket or Delhivery (no credentials); OCCPL network pricing not
 exercised against real zone data; schema validation of the new entities not run against MySQL.
+
+## Booking (phase 4)
+
+`POST /api/v1/customer-portal/shipments` (header `Idempotency-Key`, body `{quoteId, optionId}`) and
+`GET /api/v1/customer-portal/bookings/{id}` (own only). `PortalBookingService` + `PortalBookingStore`:
+
+1. Same key again: the same request returns the existing booking (provider not called again); a different request
+   is 409 `IDEMPOTENCY_KEY_REUSED`. Keys: 16-80 of `[A-Za-z0-9_-]`; the portal makes one per Confirm screen and reuses
+   it for retries. A concurrent duplicate insert (unique key) is caught and answered with the stored booking.
+2. `start` (one transaction, quote row `PESSIMISTIC_WRITE`): quote owned, option available, quote/option not expired
+   (409 `QUOTE_EXPIRED` - the customer refreshes; we do not silently re-price), no other PENDING/SUBMITTING/BOOKED/
+   OUTCOME_UNKNOWN booking of the quote (409 `QUOTE_ALREADY_BOOKED`). Saves SUBMITTING with the frozen option amount.
+3. Provider called outside any transaction with our booking id as the provider's order id.
+4. `finish`: BOOKED (reference, AWB, quote marked BOOKED), FAILED (provider certainly refused; nothing booked) or
+   OUTCOME_UNKNOWN (timeout, unreadable answer, half-finished two-step booking, unexpected exception on an external
+   call). OUTCOME_UNKNOWN is never retried automatically and blocks another booking of the quote until operations
+   reconcile it (a staff reconciliation screen is a follow-up). Audited: `PORTAL_BOOKING_SUBMITTED/BOOKED/FAILED/OUTCOME_UNKNOWN`.
+
+Per provider:
+- **OCCPL network**: creates a **pickup request** (`PickupService.createFromCustomerPortal`, new, no staff gate) for the
+  customer with expected parcels/weight and, in remarks (500 chars), the delivery details, contents, dimensions and
+  quoted total. Booking reference = pickup number; the tracking number appears when operations collect the parcel and
+  book it at the branch (existing pickup -> shipment flow). Pricing then comes from the counter's own engine; a
+  difference from the quoted total must be settled by operations (follow-up: carry the quote into the booking screen).
+- **Shiprocket**: `POST /v1/external/orders/create/adhoc` (order_id = booking id, `SHIPROCKET_PICKUP_LOCATION`), then
+  `POST /v1/external/courier/assign/awb` with the chosen courier id. Order created but no AWB = OUTCOME_UNKNOWN with the
+  Shiprocket shipment id.
+- **Delhivery**: `POST /api/cmu/create.json` (form `format=json&data=...`, order = booking id,
+  `DELHIVERY_PICKUP_LOCATION`). `success=false` = FAILED; 5xx/timeout = OUTCOME_UNKNOWN.
+- External bookings pick up from the **registered pickup location** (OCCPL's warehouse/hub), not from each customer's
+  address: per-customer pickup locations need the providers' pickup-address APIs (follow-up). The customer's pickup
+  contact goes into the order comment.
+
+Dashboard `pendingBookings` now counts the customer's PENDING/SUBMITTING/OUTCOME_UNKNOWN bookings.
 
 ## Known gaps after phase 1
 
