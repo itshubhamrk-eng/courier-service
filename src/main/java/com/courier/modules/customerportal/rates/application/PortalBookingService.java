@@ -12,7 +12,6 @@ import com.courier.shared.audit.application.AuditService;
 import com.courier.shared.audit.domain.AuditAction;
 import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.exception.ErrorCode;
-import com.courier.shared.exception.ResourceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -112,12 +111,6 @@ public class PortalBookingService {
         return view(finished, outcome.message());
     }
 
-    public BookingView get(UUID bookingId) {
-        ActingCustomer acting = resolver.require();
-        return store.findOwned(acting, bookingId).map(b -> view(b, null))
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
-    }
-
     private BookingRequest request(ActingCustomer acting, PortalBooking booking, RateQuote q, String serviceCode) {
         Map<String, Object> snapshot = q.getRequest();
         @SuppressWarnings("unchecked")
@@ -168,7 +161,7 @@ public class PortalBookingService {
         }
     }
 
-    /** labelUrl itself is never sent to the browser: labels are downloaded through the portal (next phase). */
+    /** labelUrl itself is never sent to the browser: labels are downloaded through the portal ({@link PortalShipmentService}). */
     public record BookingView(UUID bookingId, UUID quoteId, UUID optionId, String status, String providerCode,
                               String providerName, BigDecimal totalAmount, String currency, String bookingReference,
                               String trackingNumber, boolean labelAvailable, String message, Instant submittedAt,

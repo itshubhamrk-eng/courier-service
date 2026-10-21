@@ -12,11 +12,18 @@ import com.courier.shared.exception.BusinessRuleException;
 import com.courier.shared.exception.ErrorCode;
 import com.courier.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 /**
@@ -103,6 +110,53 @@ public class PortalBookingStore {
     @Transactional(readOnly = true)
     public Optional<PortalBooking> findOwned(ActingCustomer acting, UUID id) {
         return bookings.findOwned(id, acting.companyId(), acting.customerId());
+    }
+
+    /** One page of the customer's bookings with the quote and the option each was booked from. */
+    @Transactional(readOnly = true)
+    public Page<Row> page(ActingCustomer acting, Collection<PortalBooking.Status> statuses, Pageable pageable) {
+        Page<PortalBooking> page = bookings.findPage(acting.companyId(), acting.customerId(), statuses, pageable);
+        Set<UUID> quoteIds = page.stream().map(PortalBooking::getQuoteId).collect(Collectors.toSet());
+        Set<UUID> optionIds = page.stream().map(PortalBooking::getQuoteOptionId).collect(Collectors.toSet());
+        Map<UUID, RateQuote> quoteById = quoteIds.isEmpty() ? Map.of()
+                : quotes.findAllOwned(quoteIds, acting.companyId(), acting.customerId()).stream()
+                        .collect(Collectors.toMap(RateQuote::getId, Function.identity()));
+        Map<UUID, RateQuoteOption> optionById = optionIds.isEmpty() ? Map.of()
+                : options.findAllWithin(optionIds, acting.companyId()).stream()
+                        .collect(Collectors.toMap(RateQuoteOption::getId, Function.identity()));
+        return page.map(b -> new Row(b, quoteById.get(b.getQuoteId()), optionById.get(b.getQuoteOptionId())));
+    }
+
+    /** One of the customer's bookings with its quote and option; empty for anyone else's. */
+    @Transactional(readOnly = true)
+    public Optional<Row> row(ActingCustomer acting, UUID id) {
+        return bookings.findOwned(id, acting.companyId(), acting.customerId()).map(b -> new Row(b,
+                quotes.findOwned(b.getQuoteId(), acting.companyId(), acting.customerId()).orElse(null),
+                options.findByQuote(b.getQuoteId(), acting.companyId()).stream()
+                        .filter(o -> o.getId().equals(b.getQuoteOptionId())).findFirst().orElse(null)));
+    }
+
+    /** Remembers where the provider keeps the label, or forgets it (null) once the link stopped working. */
+    @Transactional
+    public void recordLabelUrl(ActingCustomer acting, UUID id, String url) {
+        bookings.findOwned(id, acting.companyId(), acting.customerId()).ifPresent(b -> {
+            b.setLabelUrl(trim(url, 1024));
+            bookings.save(b);
+        });
+    }
+
+    /** Fills in the tracking number a provider issued after booking (OCCPL: when the branch books the parcel). */
+    @Transactional
+    public void recordTrackingNumber(ActingCustomer acting, UUID id, String awb) {
+        bookings.findOwned(id, acting.companyId(), acting.customerId())
+                .filter(b -> b.getAwbNumber() == null && awb != null && !awb.isBlank())
+                .ifPresent(b -> {
+                    b.setAwbNumber(trim(awb, 60));
+                    bookings.save(b);
+                });
+    }
+
+    public record Row(PortalBooking booking, RateQuote quote, RateQuoteOption option) {
     }
 
     private static String trim(String s, int max) {

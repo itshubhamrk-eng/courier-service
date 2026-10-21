@@ -4,12 +4,18 @@ import com.courier.modules.customerportal.rates.domain.BookingOutcome;
 import com.courier.modules.customerportal.rates.domain.ChargeComponent;
 import com.courier.modules.customerportal.rates.domain.ProviderResult;
 import com.courier.modules.customerportal.rates.domain.RateRequest;
+import com.courier.modules.customerportal.rates.domain.ShipmentRef;
+import com.courier.modules.customerportal.rates.domain.TrackingEvent;
+import com.courier.modules.customerportal.rates.domain.TrackingResult;
 import com.courier.modules.customerpricing.application.ZoneRateService;
 import com.courier.modules.master.application.PincodeLocation;
 import com.courier.modules.master.application.PincodeService;
 import com.courier.modules.master.domain.Pincode;
 import com.courier.modules.pickup.application.PickupService;
 import com.courier.modules.pickup.domain.PickupRequest;
+import com.courier.modules.pickup.domain.PickupStatus;
+import com.courier.modules.shipment.application.ShipmentPortalQueries;
+import com.courier.modules.shipment.domain.ShipmentStatus;
 import com.courier.shared.exception.BusinessRuleException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +27,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,6 +45,7 @@ class OccplNetworkAdapterTest {
     @Mock private PincodeService pincodes;
     @Mock private ZoneRateService zoneRates;
     @Mock private PickupService pickups;
+    @Mock private ShipmentPortalQueries shipments;
     @InjectMocks private OccplNetworkAdapter adapter;
 
     private static final UUID DISTRICT = UUID.randomUUID();
@@ -118,5 +128,52 @@ class OccplNetworkAdapterTest {
         when(pickups.createFromCustomerPortal(any())).thenThrow(new BusinessRuleException("A valid contact mobile is required."));
 
         assertThat(adapter.book(ShiprocketAdapterTest.booking()).result()).isEqualTo(BookingOutcome.Result.REJECTED);
+    }
+
+    @Test
+    @DisplayName("tracking: pickup steps, then the branch-booked shipment's history, newest first")
+    void tracksPickupThenShipment() {
+        UUID company = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        Instant t0 = Instant.parse("2026-10-20T04:00:00Z");
+        PickupRequest p = mock(PickupRequest.class);
+        when(p.getPickupNo()).thenReturn("PU-7");
+        when(p.getStatus()).thenReturn(PickupStatus.BOOKED);
+        when(p.getCreatedAt()).thenReturn(t0);
+        when(p.getPickedUpAt()).thenReturn(t0.plusSeconds(3600));
+        when(p.getShipmentId()).thenReturn(shipmentId);
+        when(pickups.findByNumberForCustomer("PU-7", customer)).thenReturn(Optional.of(p));
+        when(shipments.timeline(company, customer, shipmentId)).thenReturn(Optional.of(new ShipmentPortalQueries.PortalTimeline(
+                new ShipmentPortalQueries.PortalShipment(shipmentId, "SH-1", "TRK-1", LocalDate.now(), ShipmentStatus.DISPATCHED,
+                        "Ravi", 1, BigDecimal.ONE, null, t0),
+                List.of(new ShipmentPortalQueries.PortalStep(ShipmentStatus.BOOKED, t0.plusSeconds(7200), "Pune Branch"),
+                        new ShipmentPortalQueries.PortalStep(ShipmentStatus.DISPATCHED, t0.plusSeconds(9000), "Pune Branch")))));
+
+        TrackingResult t = adapter.track(new ShipmentRef(company, customer, "b-1", "PU-7", null, null));
+
+        assertThat(t.available()).isTrue();
+        assertThat(t.trackingNumber()).isEqualTo("TRK-1");
+        assertThat(t.status()).isEqualTo("Dispatched");
+        assertThat(t.currentLocation()).isEqualTo("Pune Branch");
+        assertThat(t.events()).extracting(TrackingEvent::status)
+                .containsExactly("Dispatched", "Booked", "Picked up", "Pickup requested");
+    }
+
+    @Test
+    @DisplayName("tracking: another customer's pickup number finds nothing")
+    void foreignPickup() {
+        when(pickups.findByNumberForCustomer(any(), any())).thenReturn(Optional.empty());
+
+        TrackingResult t = adapter.track(new ShipmentRef(UUID.randomUUID(), UUID.randomUUID(), "b-1", "PU-7", null, null));
+
+        assertThat(t.available()).isFalse();
+    }
+
+    @Test
+    @DisplayName("labels are printed at the branch, never downloaded")
+    void noLabels() {
+        assertThat(adapter.label(new ShipmentRef(null, null, null, "PU-7", null, null)).available()).isFalse();
+        assertThat(adapter.labelHosts()).isEmpty();
     }
 }

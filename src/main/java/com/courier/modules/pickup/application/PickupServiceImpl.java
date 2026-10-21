@@ -91,8 +91,8 @@ public class PickupServiceImpl implements PickupService {
 
     @Override
     @Transactional(readOnly = true)
-    public java.util.Optional<PickupRequest> findForCustomer(UUID id, UUID customerId) {
-        return pickups.findByIdWithinCompany(id, requireCompany()).filter(p -> customerId.equals(p.getCustomerId()));
+    public java.util.Optional<PickupRequest> findByNumberForCustomer(String pickupNo, UUID customerId) {
+        return pickups.findByPickupNo(requireCompany(), pickupNo).filter(p -> customerId.equals(p.getCustomerId()));
     }
 
     @Override

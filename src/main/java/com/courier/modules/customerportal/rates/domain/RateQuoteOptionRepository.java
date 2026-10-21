@@ -11,4 +11,7 @@ public interface RateQuoteOptionRepository extends JpaRepository<RateQuoteOption
 
     @Query("select o from RateQuoteOption o where o.quoteId = :quoteId and o.companyId = :companyId")
     List<RateQuoteOption> findByQuote(@Param("quoteId") UUID quoteId, @Param("companyId") UUID companyId);
+
+    @Query("select o from RateQuoteOption o where o.id in :ids and o.companyId = :companyId")
+    List<RateQuoteOption> findAllWithin(@Param("ids") java.util.Collection<UUID> ids, @Param("companyId") UUID companyId);
 }

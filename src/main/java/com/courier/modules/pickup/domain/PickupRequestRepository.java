@@ -30,6 +30,9 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, UU
                                @Param("pdpBranchId") UUID pdpBranchId, @Param("search") String search,
                                Pageable pageable);
 
+    @Query("select p from PickupRequest p where p.companyId = :companyId and p.pickupNo = :pickupNo")
+    Optional<PickupRequest> findByPickupNo(@Param("companyId") UUID companyId, @Param("pickupNo") String pickupNo);
+
     @Query("select p from PickupRequest p where p.companyId = :companyId and p.shipmentId = :shipmentId")
     Optional<PickupRequest> findByShipment(@Param("companyId") UUID companyId, @Param("shipmentId") UUID shipmentId);
 

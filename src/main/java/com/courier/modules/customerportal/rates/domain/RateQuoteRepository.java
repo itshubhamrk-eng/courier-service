@@ -21,4 +21,8 @@ public interface RateQuoteRepository extends JpaRepository<RateQuote, UUID> {
     @Query("select q from RateQuote q where q.id = :id and q.companyId = :companyId and q.customerId = :customerId")
     Optional<RateQuote> findOwnedForUpdate(@Param("id") UUID id, @Param("companyId") UUID companyId,
                                            @Param("customerId") UUID customerId);
+
+    @Query("select q from RateQuote q where q.id in :ids and q.companyId = :companyId and q.customerId = :customerId")
+    java.util.List<RateQuote> findAllOwned(@Param("ids") java.util.Collection<UUID> ids, @Param("companyId") UUID companyId,
+                                           @Param("customerId") UUID customerId);
 }
