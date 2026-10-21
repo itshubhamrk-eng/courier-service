@@ -4,7 +4,7 @@ Courier Management backend: Java 21, Spring Boot 3, MySQL 8, Redis. Split from `
 
 - Build and test: `mvn test` (unit), `mvn verify` (needs Docker for the integration tests).
 - Run in a container: `Dockerfile` (the `Image` workflow publishes `ghcr.io/<owner>/courier-service`).
-- The web app lives in [`courier-web`](https://github.com/itshubhamrk-eng/courier-web); its nginx forwards `/api/` to a host named `backend`.
+- The web app lives in [`courier-web`](https://github.com/occplsoftech/courier-web); its nginx forwards `/api/` to a host named `backend`.
 - Project notes (architecture, modules, changelog): `MEMORY/`.
 
 ## OCCPL platform integration (off by default)

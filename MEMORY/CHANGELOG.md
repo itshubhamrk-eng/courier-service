@@ -8,6 +8,10 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-21 — Repository moved to the occplsoftech account
+
+- The repository (and `courier-web`) moved from `itshubhamrk-eng` to `occplsoftech`. The `Release` workflow already names the image from the repository owner, so it now publishes `ghcr.io/occplsoftech/courier-service`. README link to `courier-web` updated. The deploy key and `dev` environment are set up per the OCCPL runbook, section 9, step 14.
+
 ## 2026-10-19 — Sign in with OCCPL: look the person up inside the company being signed in to
 
 - On the dev server the first platform sign-in failed with `CompanyIsolationException: Cross-company update blocked for User`: the person was already a user of a *different* test company (same email), the email lookup returned that account, and marking it verified was refused by the isolation guard (correctly).
