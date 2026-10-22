@@ -1,6 +1,7 @@
 package com.courier.modules.customerportal.integrations.api;
 
 import com.courier.modules.customerportal.integrations.application.CourierIntegrationService;
+import com.courier.modules.customerportal.integrations.application.CourierLogoService;
 import com.courier.modules.customerportal.integrations.application.CourierIntegrationService.IntegrationView;
 import com.courier.shared.api.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +15,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +33,7 @@ import java.util.Map;
 public class CourierIntegrationController {
 
     private final CourierIntegrationService service;
+    private final CourierLogoService logos;
 
     @GetMapping
     @Operation(summary = "Every courier with its connection state and form fields",
@@ -55,6 +61,21 @@ public class CourierIntegrationController {
     @Operation(summary = "Disconnect a courier: removes the credentials and switches it off for the company")
     public ApiResponse<IntegrationView> disconnect(@PathVariable String code) {
         return ApiResponse.success(service.disconnect(code), "Courier disconnected");
+    }
+
+    @PutMapping(value = "/{code}/logo", consumes = "multipart/form-data")
+    @Operation(summary = "Upload the courier's logo shown to the company's customers",
+            description = "PNG, JPEG or WebP, at most 150 KB. The type is read from the file itself.")
+    public ApiResponse<Void> uploadLogo(@PathVariable String code, @RequestParam("file") MultipartFile file) throws IOException {
+        logos.upload(code, file.getBytes());
+        return ApiResponse.success("Logo saved");
+    }
+
+    @DeleteMapping("/{code}/logo")
+    @Operation(summary = "Remove the courier's logo")
+    public ApiResponse<Void> removeLogo(@PathVariable String code) {
+        logos.remove(code);
+        return ApiResponse.success("Logo removed");
     }
 
     public record SaveRequest(boolean enabled, Map<String, String> values) {

@@ -45,12 +45,19 @@ public class CustomerPortalController {
     private final PincodeLookupService pincodeLookupService;
     private final CustomerPortalAddressService addressService;
     private final CustomerPortalShipmentTracking shipmentTracking;
+    private final com.courier.modules.customerportal.integrations.application.CourierLogoService courierLogos;
 
     @GetMapping("/profile")
     @Operation(summary = "The signed-in customer's profile and addresses")
     public ApiResponse<ProfileResponse> profile() {
         Profile profile = profileService.profile();
         return ApiResponse.success(ProfileResponse.of(profile.customer(), profile.addresses()));
+    }
+
+    @GetMapping("/courier-logos")
+    @Operation(summary = "The company's courier logos, by courier code (data URLs)")
+    public ApiResponse<java.util.Map<String, String>> courierLogos() {
+        return ApiResponse.success(courierLogos.logosOfCompany());
     }
 
     @GetMapping("/dashboard")
