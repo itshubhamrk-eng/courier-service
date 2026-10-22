@@ -241,7 +241,7 @@ public class CourierIntegrationService {
         CourierIntegration row = saved.orElse(null);
         return new IntegrationView(p.code(), p.name(), p.available(), p.note(), source, enabled, connected, unreadable, fields,
                 row == null ? null : row.getLastTestedAt(), row == null ? null : row.getLastTestOk(),
-                row == null ? null : row.getLastTestMessage());
+                row == null ? null : row.getLastTestMessage(), row == null ? null : row.getLogoDataUrl());
     }
 
     private boolean environmentConfigured(String code) {
@@ -267,7 +267,7 @@ public class CourierIntegrationService {
     /** {@code source}: COMPANY (saved by the administrator), ENVIRONMENT (the server's built-in settings) or NONE. */
     public record IntegrationView(String code, String name, boolean available, String note, String source, boolean enabled,
                                   boolean connected, boolean credentialsUnreadable, List<FieldView> fields,
-                                  Instant lastTestedAt, Boolean lastTestOk, String lastTestMessage) {
+                                  Instant lastTestedAt, Boolean lastTestOk, String lastTestMessage, String logoDataUrl) {
     }
 
     /** {@code value} is null for a secret; {@code set} says whether it has a value. */

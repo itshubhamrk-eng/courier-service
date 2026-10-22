@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -48,4 +50,9 @@ public class CourierIntegration extends CompanyOwnedEntity {
 
     @Column(name = "last_test_message", length = 255)
     private String lastTestMessage;
+
+    /** The courier's logo as a {@code data:image/...;base64,...} URL; set by {@code CourierLogoService}, which checks it. */
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(name = "logo_data_url", columnDefinition = "MEDIUMTEXT")
+    private String logoDataUrl;
 }
