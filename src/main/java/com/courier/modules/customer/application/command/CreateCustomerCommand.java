@@ -19,6 +19,7 @@ public record CreateCustomerCommand(
         String email,
         String gstNumber,
         String panNumber,
+        String website,
         /** Null means "default true" — see {@code CustomerServiceImpl.create}. */
         Boolean whatsappEnabled,
         Boolean smsEnabled,

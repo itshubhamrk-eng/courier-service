@@ -31,6 +31,8 @@ public final class CustomerPortalDtos {
             String email,
             String gstNumber,
             String panNumber,
+            String website,
+            @Schema(description = "The customer's brand logo as a data URL, or null") String logoDataUrl,
             String defaultPaymentMode,
             BillingAddress billingAddress,
             List<AddressView> addresses) {
@@ -38,6 +40,7 @@ public final class CustomerPortalDtos {
         static ProfileResponse of(Customer c, List<AddressView> addresses) {
             return new ProfileResponse(c.getId(), c.getCustomerCode(), c.getCompanyName(), c.getContactPerson(),
                     c.getMobile(), c.getEmail(), c.getGstNumber(), c.getPanNumber(),
+                    c.getWebsite(), c.getLogoDataUrl(),
                     c.getDefaultPaymentMode() == null ? null : c.getDefaultPaymentMode().name(),
                     new BillingAddress(c.getBillingAddressLine1(), c.getBillingAddressLine2(), c.getBillingCity(),
                             c.getBillingState(), c.getBillingPincode()),

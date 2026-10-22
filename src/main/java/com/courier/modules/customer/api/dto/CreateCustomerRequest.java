@@ -51,6 +51,9 @@ public record CreateCustomerRequest(
         @Pattern(regexp = "^$|^[A-Z]{5}[0-9]{4}[A-Z]$", message = "must be a valid 10-character PAN")
         String panNumber,
 
+        @Pattern(regexp = "^$|^https?://[^\\s]{3,245}$", message = "must be a web address starting with http:// or https://")
+        @Schema(description = "The customer's brand website", example = "https://www.acme.in") String website,
+
         @Schema(description = "Communication preference — defaults to true when omitted") Boolean whatsappEnabled,
         @Schema(description = "Communication preference — defaults to true when omitted") Boolean smsEnabled,
         @Schema(description = "Communication preference — defaults to true when omitted") Boolean emailEnabled,

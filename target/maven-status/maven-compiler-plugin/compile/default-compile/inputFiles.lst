@@ -448,6 +448,7 @@
 /home/user/courier-service/src/main/java/com/courier/modules/customer/api/dto/UpdateCustomerRequest.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerAddressService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerAddressServiceImpl.java
+/home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerLogoService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerPortalAddressBook.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerPortalLookup.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerService.java
@@ -1371,6 +1372,7 @@
 /home/user/courier-service/src/main/java/com/courier/shared/exception/ResourceNotFoundException.java
 /home/user/courier-service/src/main/java/com/courier/shared/exception/RouteRateUnavailableException.java
 /home/user/courier-service/src/main/java/com/courier/shared/exception/UnauthorizedException.java
+/home/user/courier-service/src/main/java/com/courier/shared/image/LogoImages.java
 /home/user/courier-service/src/main/java/com/courier/shared/security/AccessTokenRevocationChecker.java
 /home/user/courier-service/src/main/java/com/courier/shared/security/AuthenticatedUser.java
 /home/user/courier-service/src/main/java/com/courier/shared/security/EncryptedStringConverter.java

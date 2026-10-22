@@ -71,7 +71,7 @@ class CourierLogoServiceTest {
     @DisplayName("an empty or oversized file is refused")
     void refusesSize() {
         assertThatThrownBy(() -> service.upload("DELHIVERY", new byte[0])).isInstanceOf(BusinessRuleException.class);
-        byte[] big = new byte[CourierLogoService.MAX_BYTES + 1];
+        byte[] big = new byte[com.courier.shared.image.LogoImages.MAX_BYTES + 1];
         System.arraycopy(PNG, 0, big, 0, PNG.length);
         assertThatThrownBy(() -> service.upload("DELHIVERY", big)).isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("150 KB");
