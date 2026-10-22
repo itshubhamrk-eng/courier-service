@@ -191,4 +191,26 @@ class RateComparisonServiceTest {
         for (int i = 0; i < CompareRateLimiter.MAX_PER_WINDOW; i++) limiter.check(user);
         assertThatThrownBy(() -> limiter.check(user)).isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    @DisplayName("estimate prices from pincodes alone, stores nothing, and uses the actual weight when there are no dimensions")
+    void estimate() {
+        var captured = new java.util.concurrent.atomic.AtomicReference<RateRequest>();
+        QuoteView q = service(adapter("SHIPROCKET", true, true, r -> { captured.set(r); return priced("SHIPROCKET", "90"); }))
+                .estimate(new RateComparisonService.EstimateCommand("400001", "411016", 10, new BigDecimal("200"),
+                        new BigDecimal("500"), null, null, null, null, "PREPAID"));
+
+        assertThat(q.options()).hasSize(1);
+        assertThat(q.volumetricWeightKg()).isEqualByComparingTo("200");
+        assertThat(captured.get().pickupPincode()).isEqualTo("400001");
+        verify(store, org.mockito.Mockito.never()).save(any(), anyList());
+    }
+
+    @Test
+    @DisplayName("estimate still validates the pincodes and package")
+    void estimateValidates() {
+        assertThatThrownBy(() -> service().estimate(new RateComparisonService.EstimateCommand("0123", "411016", 1,
+                new BigDecimal("1"), new BigDecimal("100"), null, null, null, null, "PREPAID")))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("pincode");
+    }
 }

@@ -94,6 +94,17 @@ public class RateComparisonService {
                 .expiresAt(expires)
                 .build();
 
+        List<RateQuoteOption> options = priceOptions(acting, results, now, expires);
+        RateQuoteStore.Saved saved = store.save(quote, options);
+        log.info("Rate comparison {} for customer {}: {} option(s), {} provider(s) unavailable",
+                saved.quote().getId(), acting.customerId(),
+                saved.options().stream().filter(RateQuoteOption::isAvailable).count(),
+                saved.options().stream().filter(o -> !o.isAvailable()).count());
+        return view(saved.quote(), saved.options(), now);
+    }
+
+    /** Prices every provider's answer (markup and tax included); the unavailable ones are kept with their reason. */
+    private List<RateQuoteOption> priceOptions(ActingCustomer acting, List<ProviderResult> results, Instant now, Instant expires) {
         List<RateQuoteOption> options = new ArrayList<>();
         for (ProviderResult result : results) {
             if (!result.available()) {
@@ -131,12 +142,34 @@ public class RateComparisonService {
                         .build());
             }
         }
-        RateQuoteStore.Saved saved = store.save(quote, options);
-        log.info("Rate comparison {} for customer {}: {} option(s), {} provider(s) unavailable",
-                saved.quote().getId(), acting.customerId(),
-                saved.options().stream().filter(RateQuoteOption::isAvailable).count(),
-                saved.options().stream().filter(o -> !o.isAvailable()).count());
-        return view(saved.quote(), saved.options(), now);
+        return options;
+    }
+
+    /**
+     * A price check from pincodes and a package only — nothing is stored and the result cannot be booked as it stands (no
+     * addresses yet), so its option ids are not valid for booking. Without dimensions the chargeable weight is the actual weight.
+     */
+    public QuoteView estimate(EstimateCommand e) {
+        ActingCustomer acting = resolver.require();
+        limiter.check(acting.userId());
+        boolean dims = e.length() != null && e.breadth() != null && e.height() != null;
+        PackageInput pkg = new PackageInput(e.actualWeightKg(), dims ? e.length() : BigDecimal.ONE,
+                dims ? e.breadth() : BigDecimal.ONE, dims ? e.height() : BigDecimal.ONE, dims ? e.dimensionUnit() : "CM",
+                e.packageCount(), "estimate", e.declaredValue(), e.paymentMode());
+        RateRequest request = toRequest(acting, new CompareCommand(new PartyInput(null, null, null, e.pickupPincode(), null, null),
+                new PartyInput(null, null, null, e.deliveryPincode(), null, null), pkg));
+        BigDecimal volumetric = request.lengthCm().multiply(request.breadthCm()).multiply(request.heightCm())
+                .multiply(BigDecimal.valueOf(request.packageCount()))
+                .divide(BigDecimal.valueOf(properties.getVolumetricDivisor()), 3, RoundingMode.HALF_UP);
+        List<ProviderResult> results = askProviders(request);
+        Instant now = Instant.now();
+        Instant expires = now.plus(properties.getQuoteValidity());
+        List<RateQuoteOption> options = priceOptions(acting, results, now, expires);
+        RateQuote quote = RateQuote.builder().pickupPincode(request.pickupPincode()).deliveryPincode(request.deliveryPincode())
+                .actualWeightKg(request.actualWeightKg()).volumetricWeightKg(dims ? volumetric : request.actualWeightKg())
+                .packageCount(request.packageCount()).declaredValue(request.declaredValue())
+                .paymentMode(request.paymentMode().name()).status("OPEN").expiresAt(expires).build();
+        return view(quote, options, now);
     }
 
     public QuoteView get(UUID quoteId) {
@@ -325,6 +358,11 @@ public class RateComparisonService {
     public record PackageInput(BigDecimal actualWeightKg, BigDecimal length, BigDecimal breadth, BigDecimal height,
                                String dimensionUnit, Integer packageCount, String contents, BigDecimal declaredValue,
                                String paymentMode) {
+    }
+
+    public record EstimateCommand(String pickupPincode, String deliveryPincode, Integer packageCount, BigDecimal actualWeightKg,
+                                  BigDecimal declaredValue, BigDecimal length, BigDecimal breadth, BigDecimal height,
+                                  String dimensionUnit, String paymentMode) {
     }
 
     public record CompareCommand(PartyInput pickup, PartyInput delivery, PackageInput pkg) {

@@ -2,6 +2,7 @@ package com.courier.modules.customerportal.api;
 
 import com.courier.modules.customerportal.rates.application.RateComparisonService;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.CompareCommand;
+import com.courier.modules.customerportal.rates.application.RateComparisonService.EstimateCommand;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.PackageInput;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.PartyInput;
 import com.courier.modules.customerportal.rates.application.RateComparisonService.QuoteView;
@@ -43,6 +44,17 @@ public class CustomerPortalRatesController {
                 request.delivery().toInput(), request.pkg().toInput())));
     }
 
+    @PostMapping("/rates/estimate")
+    @Operation(summary = "Rate calculator: price a package between two pincodes, nothing stored",
+            description = "Same couriers and pricing as compare, from pincodes and a package only. The option ids are not stored and cannot be booked: "
+                    + "book through the booking flow, which asks for the addresses. Without dimensions the chargeable "
+                    + "weight is the actual weight.")
+    public ApiResponse<QuoteView> estimate(@Valid @RequestBody EstimateRequest request) {
+        return ApiResponse.success(service.estimate(new EstimateCommand(request.pickupPincode(), request.deliveryPincode(),
+                request.packageCount(), request.actualWeightKg(), request.declaredValue(), request.length(),
+                request.breadth(), request.height(), request.dimensionUnit(), request.paymentMode())));
+    }
+
     @GetMapping("/quotes/{quoteId}")
     @Operation(summary = "One of the customer's own quotes (404 for anyone else's)")
     public ApiResponse<QuoteView> quote(@PathVariable UUID quoteId) {
@@ -65,6 +77,12 @@ public class CustomerPortalRatesController {
             return new PackageInput(actualWeightKg, length, breadth, height, dimensionUnit, packageCount, contents,
                     declaredValue, paymentMode);
         }
+    }
+
+    public record EstimateRequest(@NotNull @Size(max = 6) String pickupPincode, @NotNull @Size(max = 6) String deliveryPincode,
+                                  @NotNull Integer packageCount, @NotNull BigDecimal actualWeightKg,
+                                  @NotNull BigDecimal declaredValue, BigDecimal length, BigDecimal breadth, BigDecimal height,
+                                  @Size(max = 2) String dimensionUnit, @Size(max = 10) String paymentMode) {
     }
 
     public record CompareRequest(@NotNull @Valid Party pickup, @NotNull @Valid Party delivery,

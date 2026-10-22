@@ -1168,6 +1168,7 @@ com/courier/modules/crossing/api/CrossingMapper.class
 com/courier/modules/support/api/dto/AssignmentRequest.class
 com/courier/modules/company/domain/DepartmentStatus.class
 com/courier/modules/manifest/application/ManifestService.class
+com/courier/modules/customerportal/api/CustomerPortalRatesController$EstimateRequest.class
 com/courier/modules/charge/domain/ChargeStatus.class
 com/courier/modules/communication/application/CommunicationSendServiceImpl$1.class
 com/courier/modules/customerpricing/application/BusinessCustomerDashboard$CustomerRow.class
@@ -1296,6 +1297,7 @@ com/courier/modules/master/api/dto/CountryResponse.class
 com/courier/modules/shipment/application/event/ShipmentEvent$OutForDelivery.class
 com/courier/modules/pricing/domain/PricingConfiguration.class
 com/courier/modules/customerportal/rates/application/PortalBookingService$BookingView.class
+com/courier/modules/customerportal/rates/application/RateComparisonService$EstimateCommand.class
 com/courier/modules/charge/domain/ChargeRepository.class
 com/courier/modules/freight/api/dto/FreightFactorSearchRequest.class
 com/courier/modules/ewaybill/application/EwayBillServiceImpl.class
