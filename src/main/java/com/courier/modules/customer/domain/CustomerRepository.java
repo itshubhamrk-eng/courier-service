@@ -3,6 +3,7 @@ package com.courier.modules.customer.domain;
 import com.courier.shared.domain.TimeOrderedUuid;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,6 +23,14 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>,
 
     @Query("select c from Customer c where c.id = :id and c.companyId = :companyId")
     Optional<Customer> findByIdWithinCompany(@Param("id") UUID id, @Param("companyId") UUID companyId);
+
+    /**
+     * Sets or clears the brand logo without touching the row's version, so saving a logo never makes an open edit form of
+     * the same customer stale. Returns 0 when the customer is not in the company.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Customer c set c.logoDataUrl = :logo where c.id = :id and c.companyId = :companyId")
+    int setLogo(@Param("id") UUID id, @Param("companyId") UUID companyId, @Param("logo") String logo);
 
     /** Exact match, not the {@code search} LIKE — used to find-or-create a customer by the
      *  number typed at booking, so a repeat customer is reused rather than duplicated. */

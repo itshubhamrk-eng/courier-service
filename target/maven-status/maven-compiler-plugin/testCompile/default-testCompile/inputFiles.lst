@@ -57,6 +57,7 @@
 /home/user/courier-service/src/test/java/com/courier/modules/crossing/application/CrossingServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/crossing/application/HubOperationsServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerAddressServiceImplTest.java
+/home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerLogoServiceTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerPortalAddressBookTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerbilling/BillingCycleTest.java

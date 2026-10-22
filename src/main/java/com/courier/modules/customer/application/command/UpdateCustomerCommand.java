@@ -16,6 +16,7 @@ public record UpdateCustomerCommand(
         String email,
         String gstNumber,
         String panNumber,
+        String website,
         boolean whatsappEnabled,
         boolean smsEnabled,
         boolean emailEnabled,

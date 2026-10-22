@@ -21,6 +21,8 @@ public record CustomerResponse(
         String displayName,
         String mobile, String alternateMobile, String email,
         String gstNumber, String panNumber,
+        String website,
+        @Schema(description = "True when a brand logo is uploaded; fetch it with GET /customers/{id}/logo") boolean hasLogo,
         boolean whatsappEnabled, boolean smsEnabled, boolean emailEnabled,
         String contactPerson, CustomerPaymentMode defaultPaymentMode, BillingFrequency billingFrequency,
         String billingAddressLine1, String billingAddressLine2, String billingCity,

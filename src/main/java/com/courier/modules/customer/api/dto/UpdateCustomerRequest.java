@@ -41,6 +41,9 @@ public record UpdateCustomerRequest(
         @Pattern(regexp = "^$|^[A-Z]{5}[0-9]{4}[A-Z]$", message = "must be a valid 10-character PAN")
         String panNumber,
 
+        @Pattern(regexp = "^$|^https?://[^\\s]{3,245}$", message = "must be a web address starting with http:// or https://")
+        String website,
+
         boolean whatsappEnabled,
         boolean smsEnabled,
         boolean emailEnabled,

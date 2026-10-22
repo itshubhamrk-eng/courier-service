@@ -83,6 +83,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .email(command.email())
                 .gstNumber(command.gstNumber())
                 .panNumber(command.panNumber())
+                .website(command.website())
                 .whatsappEnabled(command.whatsappEnabled() == null || command.whatsappEnabled())
                 .smsEnabled(command.smsEnabled() == null || command.smsEnabled())
                 .emailEnabled(command.emailEnabled() == null || command.emailEnabled())
@@ -136,7 +137,7 @@ public class CustomerServiceImpl implements CustomerService {
             }
         }
         return new CreateCustomerCommand(null, CustomerType.INDIVIDUAL, null,
-                firstName, null, lastName, mobile, null, null, null, null,
+                firstName, null, lastName, mobile, null, null, null, null, null,
                 null, null, null,
                 null, null, null, null, null, null, null, null);
     }
@@ -178,6 +179,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setEmail(command.email());
         customer.setGstNumber(command.gstNumber());
         customer.setPanNumber(command.panNumber());
+        customer.setWebsite(command.website());
         customer.setWhatsappEnabled(command.whatsappEnabled());
         customer.setSmsEnabled(command.smsEnabled());
         customer.setEmailEnabled(command.emailEnabled());
@@ -306,6 +308,7 @@ public class CustomerServiceImpl implements CustomerService {
         v.put("email", c.getEmail());
         v.put("gstNumber", c.getGstNumber());
         v.put("panNumber", c.getPanNumber());
+        v.put("website", c.getWebsite());
         v.put("contactPerson", c.getContactPerson());
         v.put("defaultPaymentMode", c.getDefaultPaymentMode() == null ? null : c.getDefaultPaymentMode().name());
         v.put("billingFrequency", c.getBillingFrequency() == null ? null : c.getBillingFrequency().name());

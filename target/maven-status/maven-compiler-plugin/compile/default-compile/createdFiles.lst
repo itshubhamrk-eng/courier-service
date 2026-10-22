@@ -51,6 +51,7 @@ com/courier/modules/customerportal/api/PricingMarkupRuleController$CreateRuleReq
 com/courier/modules/company/api/dto/RoleResponse.class
 com/courier/modules/freight/application/command/CreateFreightFactorCommand.class
 com/courier/modules/customerpricing/application/PricingZoneView$LocationView.class
+com/courier/modules/customer/application/CustomerLogoService.class
 com/courier/modules/shipment/application/ShipmentServiceImpl$1.class
 com/courier/modules/customerportal/rates/application/PortalShipmentService$BookingSummary.class
 com/courier/modules/master/application/CityServiceImpl.class
@@ -875,6 +876,7 @@ com/courier/modules/master/api/dto/UpdateRouteRequest.class
 com/courier/modules/customer/domain/CustomerType.class
 com/courier/modules/manifest/api/dto/CreateVehicleRequest.class
 com/courier/modules/company/api/PermissionMapper.class
+com/courier/shared/image/LogoImages.class
 com/courier/modules/crossing/domain/ShipmentExceptionRepository.class
 com/courier/modules/company/api/dto/CreateSuperAdminRequest.class
 com/courier/modules/pricing/domain/RoundingRule.class

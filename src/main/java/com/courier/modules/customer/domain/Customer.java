@@ -88,6 +88,14 @@ public class Customer extends CompanyOwnedEntity {
     @Column(name = "pan_number", length = 10)
     private String panNumber;
 
+    @Column(name = "website", length = 255)
+    private String website;
+
+    /** The brand logo as a {@code data:image/...;base64,...} URL; set only by {@code CustomerLogoService}, which checks it. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.LONGVARCHAR)
+    @Column(name = "logo_data_url", columnDefinition = "MEDIUMTEXT")
+    private String logoDataUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "default_payment_mode", nullable = false, length = 10)
     @Builder.Default
@@ -195,6 +203,7 @@ public class Customer extends CompanyOwnedEntity {
         this.email = email == null ? null : email.trim().toLowerCase();
         this.gstNumber = gstNumber == null || gstNumber.isBlank() ? null : gstNumber.trim().toUpperCase();
         this.panNumber = panNumber == null || panNumber.isBlank() ? null : panNumber.trim().toUpperCase();
+        this.website = website == null || website.isBlank() ? null : website.trim();
 
         if (customerType == null) {
             throw new BusinessRuleException("A customer must have a type.");

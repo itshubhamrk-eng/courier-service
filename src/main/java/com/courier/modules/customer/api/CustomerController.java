@@ -9,6 +9,7 @@ import com.courier.modules.customer.api.dto.CustomerSummaryResponse;
 import com.courier.modules.customer.api.dto.UpdateCustomerAddressRequest;
 import com.courier.modules.customer.api.dto.UpdateCustomerRequest;
 import com.courier.modules.customer.application.CustomerAddressService;
+import com.courier.modules.customer.application.CustomerLogoService;
 import com.courier.modules.customer.application.CustomerService;
 import com.courier.modules.customer.domain.Customer;
 import com.courier.modules.customer.domain.CustomerAddress;
@@ -37,9 +38,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -73,6 +77,7 @@ public class CustomerController {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final CustomerService customerService;
+    private final CustomerLogoService logoService;
     private final CustomerAddressService addressService;
     private final CustomerMapper mapper;
 
@@ -89,6 +94,30 @@ public class CustomerController {
                 .created(UriComponentsBuilder.fromPath("/api/v1/customers/{id}")
                         .buildAndExpand(created.getId()).toUri())
                 .body(ApiResponse.success(mapper.toResponse(created, List.of()), "Customer created"));
+    }
+
+    @GetMapping("/{id}/logo")
+    @Operation(summary = "The customer's brand logo as a data URL",
+            description = "`data` is null when no logo is uploaded.")
+    public ApiResponse<Map<String, String>> logo(@PathVariable UUID id) {
+        Map<String, String> body = new java.util.HashMap<>();
+        body.put("dataUrl", logoService.get(id).orElse(null));
+        return ApiResponse.success(body);
+    }
+
+    @PutMapping(value = "/{id}/logo", consumes = "multipart/form-data")
+    @Operation(summary = "Upload the customer's brand logo",
+            description = "PNG, JPEG or WebP, at most 150 KB; the type is read from the file. Does not change the customer's version.")
+    public ApiResponse<Void> uploadLogo(@PathVariable UUID id, @RequestParam("file") MultipartFile file) throws IOException {
+        logoService.upload(id, file.getBytes());
+        return ApiResponse.success("Logo saved");
+    }
+
+    @DeleteMapping("/{id}/logo")
+    @Operation(summary = "Remove the customer's brand logo")
+    public ApiResponse<Void> removeLogo(@PathVariable UUID id) {
+        logoService.remove(id);
+        return ApiResponse.success("Logo removed");
     }
 
     @PutMapping("/{id}")

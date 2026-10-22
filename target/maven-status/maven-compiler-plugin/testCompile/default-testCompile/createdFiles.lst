@@ -114,6 +114,7 @@ com/courier/modules/manifest/application/ManifestServiceImplTest.class
 com/courier/modules/company/domain/UserTest$Lifecycle.class
 com/courier/modules/communication/application/DailyReportServiceImplTest.class
 com/courier/modules/master/domain/MasterDataSpecificationsTest.class
+com/courier/modules/customer/application/CustomerLogoServiceTest.class
 com/courier/modules/customerportal/rates/application/PortalShipmentServiceTest$1.class
 com/courier/modules/pricing/application/validation/RateValidationTest.class
 com/courier/modules/shipment/domain/PackageIdTest.class

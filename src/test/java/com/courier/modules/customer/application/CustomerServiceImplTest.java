@@ -152,7 +152,7 @@ class CustomerServiceImplTest {
 
         UpdateCustomerCommand update = new UpdateCustomerCommand(
                 CustomerType.INDIVIDUAL, null, "Asha", null, "Shah",
-                "9876500000", null, null, null, null, true, true, true,
+                "9876500000", null, null, null, null, null, true, true, true,
                 null, null, null, null, null, null, null, null, 1L);
 
         assertThatThrownBy(() -> service.update(existing.getId(), update))
@@ -168,7 +168,7 @@ class CustomerServiceImplTest {
 
         UpdateCustomerCommand update = new UpdateCustomerCommand(
                 CustomerType.INDIVIDUAL, null, "Asha", null, "Shah",
-                "9876500000", null, null, null, null, true, true, true,
+                "9876500000", null, null, null, null, null, true, true, true,
                 null, null, null, null, null, null, null, null, 2L);
 
         Customer updated = service.update(existing.getId(), update);
@@ -263,7 +263,7 @@ class CustomerServiceImplTest {
 
     private static CreateCustomerCommand command(String code, CustomerType type, String mobile, String gst) {
         return new CreateCustomerCommand(code, type, null, "Asha", null, "Shah",
-                mobile, null, null, gst, null, null, null, null,
+                mobile, null, null, gst, null, null, null, null, null,
                 null, null, null, null, null, null, null, null);
     }
 
