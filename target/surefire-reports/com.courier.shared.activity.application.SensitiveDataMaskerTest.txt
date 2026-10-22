@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.courier.shared.activity.application.SensitiveDataMaskerTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s -- in com.courier.shared.activity.application.SensitiveDataMaskerTest

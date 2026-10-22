@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.courier.modules.company.application.BranchPincodeMappingServiceTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.204 s -- in com.courier.modules.company.application.BranchPincodeMappingServiceTest
