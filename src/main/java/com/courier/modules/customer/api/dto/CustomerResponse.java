@@ -23,6 +23,7 @@ public record CustomerResponse(
         String gstNumber, String panNumber,
         String website,
         @Schema(description = "True when a brand logo is uploaded; fetch it with GET /customers/{id}/logo") boolean hasLogo,
+        @Schema(description = "The customer that registered this one, or null") UUID parentCustomerId,
         boolean whatsappEnabled, boolean smsEnabled, boolean emailEnabled,
         String contactPerson, CustomerPaymentMode defaultPaymentMode, BillingFrequency billingFrequency,
         String billingAddressLine1, String billingAddressLine2, String billingCity,

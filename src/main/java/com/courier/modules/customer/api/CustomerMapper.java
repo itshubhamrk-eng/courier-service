@@ -73,7 +73,7 @@ public class CustomerMapper {
                 c.getCompanyName(), c.getFirstName(), c.getMiddleName(), c.getLastName(),
                 c.displayName(),
                 c.getMobile(), c.getAlternateMobile(), c.getEmail(),
-                c.getGstNumber(), c.getPanNumber(), c.getWebsite(), c.getLogoDataUrl() != null,
+                c.getGstNumber(), c.getPanNumber(), c.getWebsite(), c.getLogoDataUrl() != null, c.getParentCustomerId(),
                 c.isWhatsappEnabled(), c.isSmsEnabled(), c.isEmailEnabled(),
                 c.getContactPerson(), c.getDefaultPaymentMode(), c.getBillingFrequency(),
                 c.getBillingAddressLine1(), c.getBillingAddressLine2(), c.getBillingCity(),

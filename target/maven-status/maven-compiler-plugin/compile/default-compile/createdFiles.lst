@@ -1216,6 +1216,7 @@ com/courier/modules/shipment/domain/ShipmentRepository$DailyCountRow.class
 com/courier/modules/pod/application/provider/PodVerificationProvider.class
 com/courier/modules/customerbilling/application/CustomerBillingServiceImpl.class
 com/courier/modules/followup/api/FollowUpMapper.class
+com/courier/modules/customerportal/api/CustomerPortalDtos$SubCustomerView.class
 com/courier/modules/crossing/api/dto/ExceptionSearchRequest.class
 com/courier/modules/company/api/dto/UpdateBranchRequest.class
 com/courier/modules/customerbilling/application/BillingCycleService.class
@@ -1224,6 +1225,7 @@ com/courier/modules/support/domain/ShipmentSlaBreachRepository.class
 com/courier/modules/districtfreight/api/dto/FreightCalculationRequest.class
 com/courier/modules/crossing/api/dto/ShipmentExceptionResponse.class
 com/courier/modules/company/application/UserService.class
+com/courier/modules/customer/application/CustomerPortalSubCustomers.class
 com/courier/modules/customerportal/integrations/application/CourierCatalog$Provider.class
 com/courier/modules/subscription/domain/SubscriptionPlan$SubscriptionPlanBuilder.class
 com/courier/modules/distance/application/AddressDistanceService$Located.class
@@ -1237,6 +1239,7 @@ com/courier/modules/communication/application/provider/SmsProvider$SmsCredential
 com/courier/modules/customerbilling/api/CustomerBillingDtos$LineResponse.class
 com/courier/modules/customer/domain/AddressType.class
 com/courier/modules/communication/application/WhatsAppRateSyncService.class
+com/courier/modules/customerportal/api/CustomerPortalDtos$SubCustomerRequest.class
 com/courier/modules/finance/api/dto/TopupRequestResponse.class
 com/courier/modules/support/domain/TicketRepository$TenantCount.class
 com/courier/modules/crossing/domain/CrossingDetailCriteria.class
@@ -1557,6 +1560,7 @@ com/courier/modules/company/api/dto/MenuItemRequest.class
 com/courier/modules/shipment/domain/BranchLookupPort$BranchRef.class
 com/courier/modules/followup/domain/FollowUpDirectoryPort$UserRef.class
 com/courier/modules/pdp/api/PdpBillingDtos$ScheduleResponse.class
+com/courier/modules/customer/application/CustomerPortalSubCustomers$SubCustomerCommand.class
 com/courier/modules/pdp/application/PdpBillingCycle.class
 com/courier/modules/pdp/application/PdpRateService$Quote.class
 com/courier/modules/finance/domain/WalletTopupRequestCriteria.class
@@ -1757,6 +1761,7 @@ com/courier/modules/shipment/api/dto/EwayBillBookingRequest.class
 com/courier/modules/finance/application/payment/PaymentGatewayPort$GatewayOrder.class
 com/courier/modules/charge/application/ChargeSettingServiceImpl.class
 com/courier/modules/auth/api/dto/UserActivitySummaryResponse.class
+com/courier/modules/customerportal/application/CustomerPortalSubCustomerService.class
 com/courier/modules/company/domain/PermissionRepository.class
 com/courier/modules/charge/application/ChargeService.class
 com/courier/modules/company/domain/PermissionSpecifications.class

@@ -93,6 +93,7 @@ com/courier/modules/company/application/CompanyAdminBoundaryTest$Isolation.class
 com/courier/modules/master/api/MasterSortSupportTest.class
 com/courier/modules/communication/application/CommunicationSendServiceImplTest.class
 com/courier/modules/communication/application/WhatsAppPayloadBuilderTest.class
+com/courier/modules/customer/application/CustomerPortalSubCustomersTest.class
 com/courier/modules/communication/domain/CommunicationEventTypeTest.class
 com/courier/modules/customerportal/rates/infrastructure/DelhiveryAdapterTest.class
 com/courier/modules/company/domain/CompanyRoleTest.class
@@ -111,6 +112,7 @@ com/courier/modules/ewaybill/domain/EwayBillStatusTest.class
 com/courier/modules/company/application/BranchRoleProvisioningServiceTest.class
 com/courier/modules/master/domain/MasterInvariantsTest$Routes.class
 com/courier/modules/manifest/application/ManifestServiceImplTest.class
+com/courier/modules/customerportal/rates/application/SameAddressRuleTest.class
 com/courier/modules/company/domain/UserTest$Lifecycle.class
 com/courier/modules/communication/application/DailyReportServiceImplTest.class
 com/courier/modules/master/domain/MasterDataSpecificationsTest.class

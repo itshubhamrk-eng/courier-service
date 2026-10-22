@@ -69,6 +69,7 @@ public class RateComparisonService {
 
     public QuoteView compare(CompareCommand c) {
         ActingCustomer acting = resolver.require();
+        requireDifferentAddresses(c);
         limiter.check(acting.userId());
         RateRequest request = toRequest(acting, c);
         BigDecimal volumetric = request.lengthCm().multiply(request.breadthCm()).multiply(request.heightCm())
@@ -318,6 +319,24 @@ public class RateComparisonService {
     }
 
     // ------------------------------------------------------------------ shapes
+
+    /** Pickup and delivery must be two different places: same pincode and the same address text (ignoring case, spacing and punctuation). */
+    static void requireDifferentAddresses(CompareCommand c) {
+        if (c.pickup() == null || c.delivery() == null) {
+            return;
+        }
+        if (sameText(c.pickup().pincode(), c.delivery().pincode()) && sameText(c.pickup().address(), c.delivery().address())) {
+            throw new BusinessRuleException("Pickup and delivery address cannot be the same. Enter the address the parcel is going to.");
+        }
+    }
+
+    private static boolean sameText(String a, String b) {
+        return normalise(a).equals(normalise(b));
+    }
+
+    private static String normalise(String s) {
+        return s == null ? "" : s.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+    }
 
     public record PartyInput(String name, String phone, String address, String pincode, String city, String state) {
     }
