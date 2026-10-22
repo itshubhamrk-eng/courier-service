@@ -59,6 +59,7 @@
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerAddressServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerLogoServiceTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerPortalAddressBookTest.java
+/home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerPortalSubCustomersTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customer/application/CustomerServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerbilling/BillingCycleTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerbilling/CustomerBillingProofTest.java
@@ -77,6 +78,7 @@
 /home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/application/PortalBookingStoreTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/application/PortalShipmentServiceTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/application/RateComparisonServiceTest.java
+/home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/application/SameAddressRuleTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/application/SlidingWindowLimiterTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/infrastructure/DelhiveryAdapterTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/customerportal/rates/infrastructure/OccplNetworkAdapterTest.java

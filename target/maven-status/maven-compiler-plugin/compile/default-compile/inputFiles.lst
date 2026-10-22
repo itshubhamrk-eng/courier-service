@@ -451,6 +451,7 @@
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerLogoService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerPortalAddressBook.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerPortalLookup.java
+/home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerPortalSubCustomers.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/CustomerServiceImpl.java
 /home/user/courier-service/src/main/java/com/courier/modules/customer/application/command/CreateCustomerAddressCommand.java
@@ -503,6 +504,7 @@
 /home/user/courier-service/src/main/java/com/courier/modules/customerportal/application/CustomerPortalDashboardService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customerportal/application/CustomerPortalProfileService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customerportal/application/CustomerPortalShipmentTracking.java
+/home/user/courier-service/src/main/java/com/courier/modules/customerportal/application/CustomerPortalSubCustomerService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customerportal/application/PincodeLookupService.java
 /home/user/courier-service/src/main/java/com/courier/modules/customerportal/integrations/api/CourierIntegrationController.java
 /home/user/courier-service/src/main/java/com/courier/modules/customerportal/integrations/application/CourierCatalog.java
