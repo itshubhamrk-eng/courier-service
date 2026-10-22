@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Profile;
  * file is a credential sitting in plaintext wherever logs are shipped and retained;
  * that is acceptable on a laptop and not acceptable anywhere else.
  *
+ * <p>Not used when real e-mail is switched on ({@code app.communication.email.enabled=true}): then
+ * {@link EmailNotificationSender} sends these links.
+ *
  * <p>Production therefore has <em>no</em> default implementation. The context fails
  * to start until a real sender is supplied, which is the correct behaviour: silently
  * swallowing password-reset emails would look exactly like a working system while
@@ -26,6 +29,8 @@ public class LogOnlyNotificationSender {
 
     @Bean
     @ConditionalOnMissingBean(NotificationPort.class)
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "app.communication.email", name = "enabled",
+            havingValue = "false", matchIfMissing = true)
     public NotificationPort logOnlyNotificationPort() {
         log.warn("No real NotificationPort configured — password reset and verification "
                 + "links will be written to the application log. Development only.");

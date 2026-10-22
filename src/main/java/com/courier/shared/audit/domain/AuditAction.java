@@ -113,6 +113,7 @@ public enum AuditAction {
     // Reusable master data, independent of Shipment Order.
     CUSTOMER_CREATED,
     CUSTOMER_UPDATED,
+    KYC_UPDATED,
     CUSTOMER_ACTIVATED,
     CUSTOMER_DEACTIVATED,
     CUSTOMER_ADDRESS_CREATED,

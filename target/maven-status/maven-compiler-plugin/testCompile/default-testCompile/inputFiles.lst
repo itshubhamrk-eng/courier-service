@@ -103,6 +103,8 @@
 /home/user/courier-service/src/test/java/com/courier/modules/followup/application/FollowUpServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/freight/application/FreightFactorServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/freight/domain/FreightFactorTest.java
+/home/user/courier-service/src/test/java/com/courier/modules/kyc/application/KycAccessTest.java
+/home/user/courier-service/src/test/java/com/courier/modules/kyc/application/KycServiceTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/manifest/application/ManifestServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/manifest/application/VehicleServiceImplTest.java
 /home/user/courier-service/src/test/java/com/courier/modules/master/api/MasterSortSupportTest.java

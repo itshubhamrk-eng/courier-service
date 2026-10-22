@@ -30,6 +30,7 @@ com/courier/modules/auth/domain/RefreshToken$RevokeReason.class
 com/courier/modules/customerportal/integrations/application/CourierIntegrationService.class
 com/courier/modules/master/domain/PackageType.class
 com/courier/modules/support/application/PublicLeadRateLimiter.class
+com/courier/modules/auth/infrastructure/EmailNotificationSender.class
 com/courier/modules/districtfreight/api/dto/ImportRowResult.class
 com/courier/modules/company/domain/UserPermissionOverride.class
 com/courier/modules/master/application/AreaServiceImpl.class
@@ -43,6 +44,7 @@ com/courier/modules/customerpricing/application/BusinessCustomerDashboardService
 com/courier/modules/auth/api/dto/CurrentUserResponse.class
 com/courier/modules/company/application/CompanyService.class
 com/courier/modules/master/api/dto/UpdateCityRequest.class
+com/courier/modules/kyc/domain/KycOtpRepository.class
 com/courier/modules/platformintegration/application/PlatformSignInService$Request.class
 com/courier/modules/distance/infrastructure/RoutingProperties.class
 com/courier/modules/master/api/PackageTypeMasterMapper.class
@@ -86,6 +88,7 @@ com/courier/modules/company/application/event/UserEvent$UserUnlocked.class
 com/courier/modules/customerpricing/api/CustomerRateDtos$SlabResponse.class
 com/courier/modules/support/domain/TicketStatusHistoryRepository.class
 com/courier/modules/shipment/application/event/ShipmentCancellationWalletListener.class
+com/courier/modules/kyc/application/KycFiles.class
 com/courier/modules/master/api/VehicleTypeMasterMapper.class
 com/courier/modules/freight/api/dto/UpdateFreightFactorRequest.class
 com/courier/modules/auth/api/dto/ChangePasswordRequest.class
@@ -113,6 +116,7 @@ com/courier/modules/finance/domain/Wallet$WalletBuilder.class
 com/courier/modules/company/application/event/UserEvent$RoleAssigned.class
 com/courier/modules/shipment/application/ShipmentService$UploadPodFileCommand.class
 com/courier/modules/company/domain/CompanyRole.class
+com/courier/modules/kyc/domain/KycDocumentFileRepository.class
 com/courier/modules/auth/application/TokenIssuer$TokenPair.class
 com/courier/modules/master/api/dto/RouteResponse.class
 com/courier/modules/rate/domain/RateSpecifications.class
@@ -182,6 +186,7 @@ com/courier/modules/crossing/api/dto/CrossingResponse.class
 com/courier/modules/customerportal/rates/domain/PricingMarkupRuleRepository.class
 com/courier/perftest/PerfDataGeneratorRunner.class
 com/courier/modules/customerbilling/domain/CustomerInvoice$CustomerInvoiceBuilder.class
+com/courier/modules/kyc/application/KycDocumentCatalog$1.class
 com/courier/modules/shipment/api/ShipmentMapper.class
 com/courier/modules/master/application/PincodeBulkImportService.class
 com/courier/modules/manifest/application/ManifestService$DispatchOtpIssued.class
@@ -325,6 +330,7 @@ com/courier/modules/pricing/application/validation/BookingValidation.class
 com/courier/modules/customerportal/rates/application/MarkupRuleService$CreateCommand.class
 com/courier/modules/pdp/application/PdpBillingCycle$Window.class
 com/courier/modules/support/domain/CompanyTicketSequenceRepository.class
+com/courier/modules/kyc/domain/KycDocumentRepository.class
 com/courier/modules/company/api/CompanyController.class
 com/courier/modules/auth/application/UserProvisioningService$NewCustomerPortalUserCommand.class
 com/courier/modules/communication/application/provider/WhatsAppProvider$WhatsAppMessage.class
@@ -393,6 +399,8 @@ com/courier/modules/communication/application/command/CreateCommunicationTemplat
 com/courier/modules/company/api/dto/CompanySummaryResponse.class
 com/courier/modules/shipment/domain/ShipmentSummaryStats.class
 com/courier/modules/company/api/dto/CompanyResponse.class
+com/courier/modules/kyc/api/KycEndpoints.class
+com/courier/modules/kyc/infrastructure/KycMessengerAdapter.class
 com/courier/modules/company/application/CompanyProvisioningService$ProvisioningResult.class
 com/courier/modules/finance/application/CompanyRazorpayConfigRepairService.class
 com/courier/modules/master/infrastructure/DisabledPincodePostalLookupProvider.class
@@ -560,6 +568,7 @@ com/courier/modules/shipment/api/dto/ShipmentResponse.class
 com/courier/modules/followup/api/dto/RescheduleRequest.class
 com/courier/modules/followup/domain/FollowUpCriteria.class
 com/courier/modules/shipment/infrastructure/ShipmentPendingCommissionDirectory.class
+com/courier/modules/kyc/domain/KycDocumentFile.class
 com/courier/modules/rate/api/dto/UpdateRateRequest.class
 com/courier/modules/company/api/dto/AssignSubscriptionRequest.class
 com/courier/modules/customerportal/rates/domain/TrackingResult.class
@@ -588,6 +597,7 @@ com/courier/modules/customerbilling/domain/CustomerInvoice.class
 com/courier/modules/busdepot/application/BusCrossingServiceImpl.class
 com/courier/modules/customerbilling/application/CustomerBillingService$InvoiceView.class
 com/courier/modules/customerportal/integrations/application/CourierCredentials$Resolved.class
+com/courier/modules/kyc/application/KycAccess.class
 com/courier/modules/dashboard/api/dto/TopCustomerResponse.class
 com/courier/modules/auth/application/port/UserPermissionsPort.class
 com/courier/modules/master/application/PincodeLocation.class
@@ -596,6 +606,7 @@ com/courier/modules/master/api/dto/CreatePaymentModeRequest.class
 com/courier/modules/company/api/CompanySettingsMapper.class
 com/courier/modules/company/api/dto/UserMenuPermissionUpdateRequest$Item.class
 com/courier/modules/master/domain/DistrictRepository.class
+com/courier/modules/kyc/domain/KycOtp.class
 com/courier/modules/company/domain/UserPermissionOverride$UserPermissionOverrideBuilder.class
 com/courier/modules/company/domain/Department.class
 com/courier/modules/company/domain/RoleType.class
@@ -697,6 +708,7 @@ com/courier/modules/communication/application/provider/WhatsAppProvider$Template
 com/courier/modules/crossing/api/HubOperationsMapper.class
 com/courier/modules/finance/application/CompanyRazorpayConfigService.class
 com/courier/modules/communication/infrastructure/WhatsAppProviderConfig.class
+com/courier/modules/kyc/application/KycService.class
 com/courier/modules/auth/domain/EmailVerificationToken$EmailVerificationTokenBuilder.class
 com/courier/modules/pod/application/PodVerificationService$ReviewPodCommand.class
 com/courier/modules/communication/application/provider/EmailProvider$EmailMessage.class
@@ -755,6 +767,7 @@ com/courier/modules/company/infrastructure/CompanyMasterBranchDirectory.class
 com/courier/modules/shipment/api/dto/UpdateShipmentRequest.class
 com/courier/modules/communication/application/WhatsAppPayloadBuilder.class
 com/courier/modules/master/api/PackageTypeController.class
+com/courier/modules/kyc/application/KycFile.class
 com/courier/modules/company/application/event/UserEvent$PasswordReset.class
 com/courier/modules/company/application/BranchPincodeMappingService.class
 com/courier/modules/company/domain/Permission.class
@@ -781,6 +794,7 @@ com/courier/modules/customerportal/rates/domain/TrackingEvent.class
 com/courier/modules/finance/api/dto/DecideTopupRequestRequest.class
 com/courier/modules/company/domain/CompanySettings.class
 com/courier/modules/finance/domain/WalletTransactionSpecifications.class
+com/courier/modules/kyc/application/KycDocumentCatalog.class
 com/courier/modules/customerportal/integrations/application/CourierSecretsCodec.class
 com/courier/modules/freight/application/FreightFactorServiceImpl.class
 com/courier/modules/shipment/domain/ShipmentCriteria.class
@@ -827,6 +841,7 @@ com/courier/modules/customerpricing/application/BusinessCustomerDashboard.class
 com/courier/modules/pickup/api/PickupDtos$PickupResponse.class
 com/courier/modules/master/application/DistrictService.class
 com/courier/modules/auth/api/dto/ForgotPasswordRequest.class
+com/courier/modules/kyc/application/KycView$Uploaded.class
 com/courier/modules/finance/domain/BranchDirectoryPort$UserRef.class
 com/courier/modules/followup/domain/FollowUpHistory$FollowUpHistoryBuilder.class
 com/courier/modules/master/domain/City.class
@@ -999,6 +1014,7 @@ com/courier/modules/customerpricing/api/BusinessCustomerDashboardController.clas
 com/courier/modules/crossing/domain/CrossingDetailSpecifications.class
 com/courier/modules/communication/domain/DefaultCommunicationTemplates$Seed.class
 com/courier/shared/company/CompanyEntityListener.class
+com/courier/modules/kyc/domain/KycProfile.class
 com/courier/modules/rate/domain/RateStatus.class
 com/courier/modules/finance/application/WalletService$WalletSummary.class
 com/courier/modules/platformintegration/api/PlatformSignInController$SsoConfig.class
@@ -1086,6 +1102,7 @@ com/courier/modules/freight/domain/FreightFactorStatus.class
 com/courier/modules/crossing/domain/CrossingBranchDirectoryPort$BranchRef.class
 com/courier/modules/pricing/application/validation/RouteValidation.class
 com/courier/modules/communication/application/CommunicationDispatchJob.class
+com/courier/modules/kyc/application/KycMessenger.class
 com/courier/modules/shipment/application/event/ShipmentEvent$DeliveryWeightCommissionApplicable.class
 com/courier/modules/customerportal/application/CustomerPortalAccessService$GrantCommand.class
 com/courier/modules/shipment/domain/UserLookupPort$UserRef.class
@@ -1140,6 +1157,7 @@ com/courier/modules/shipment/domain/BranchPerformanceSummary.class
 com/courier/modules/master/api/VehicleTypeController.class
 com/courier/modules/manifest/domain/FuelType.class
 com/courier/shared/activity/api/dto/ActivityLogResponse.class
+com/courier/modules/kyc/application/KycSubjectDirectory.class
 com/courier/modules/shipment/api/dto/ShipmentSearchRequest.class
 com/courier/modules/master/domain/CityRepository.class
 com/courier/modules/followup/domain/FollowUpStatus.class
@@ -1231,6 +1249,7 @@ com/courier/modules/customerportal/integrations/application/CourierCatalog$Provi
 com/courier/modules/subscription/domain/SubscriptionPlan$SubscriptionPlanBuilder.class
 com/courier/modules/distance/application/AddressDistanceService$Located.class
 com/courier/modules/customerportal/integrations/api/CourierIntegrationController$SaveRequest.class
+com/courier/modules/kyc/application/KycSubject.class
 com/courier/modules/master/api/dto/BulkImportPincodesRequest.class
 com/courier/modules/company/application/UserPermissionService.class
 com/courier/modules/master/api/dto/CreatePincodeRequest.class
@@ -1241,6 +1260,7 @@ com/courier/modules/customerbilling/api/CustomerBillingDtos$LineResponse.class
 com/courier/modules/customer/domain/AddressType.class
 com/courier/modules/communication/application/WhatsAppRateSyncService.class
 com/courier/modules/customerportal/api/CustomerPortalDtos$SubCustomerRequest.class
+com/courier/modules/kyc/application/KycAccess$Target.class
 com/courier/modules/finance/api/dto/TopupRequestResponse.class
 com/courier/modules/support/domain/TicketRepository$TenantCount.class
 com/courier/modules/crossing/domain/CrossingDetailCriteria.class
@@ -1248,6 +1268,7 @@ com/courier/modules/pod/application/provider/HeuristicPodVerificationProvider$Im
 com/courier/modules/support/api/dto/ChangeCategoryRequest.class
 com/courier/modules/support/application/TicketServiceImpl.class
 com/courier/modules/crossing/api/dto/UpdateCrossingStatusRequest.class
+com/courier/modules/kyc/application/KycDocumentCatalog$DocumentSpec.class
 com/courier/modules/distance/application/routing/RoutingPort$RouteResult.class
 com/courier/modules/platformintegration/infrastructure/PlatformSecurityConfig.class
 com/courier/modules/busdepot/api/BusCrossingController$ShipmentCrossingResponse.class
@@ -1320,6 +1341,7 @@ com/courier/modules/company/application/UserService$CreatedUser.class
 com/courier/modules/master/application/command/WeightSlabCommand.class
 com/courier/modules/pdp/application/PdpEarningServiceImpl.class
 com/courier/modules/pricing/application/calculator/FreightCalculator.class
+com/courier/modules/kyc/api/KycEndpoints$CodeRequest.class
 com/courier/modules/customerportal/api/CustomerPortalDtos$AccessResponse.class
 com/courier/modules/customerportal/application/CustomerPortalShipmentTracking.class
 com/courier/modules/rate/application/command/CreateRateCommand.class
@@ -1371,6 +1393,7 @@ com/courier/modules/communication/domain/CommunicationTemplateRepository.class
 com/courier/modules/finance/domain/WalletRepository.class
 com/courier/modules/communication/application/provider/WhatsAppProvider$TemplateSubmissionResult.class
 com/courier/modules/communication/application/WhatsAppTemplateSubmissionService.class
+com/courier/modules/kyc/application/KycSummary.class
 com/courier/modules/shipment/application/event/ShipmentEvent$DrsChargeApplicable.class
 com/courier/modules/finance/domain/BranchDirectoryPort$BranchRef.class
 com/courier/modules/company/infrastructure/CompanyShipmentUserDirectory.class
@@ -1398,6 +1421,7 @@ com/courier/modules/busdepot/application/BusDepotView.class
 com/courier/modules/pod/domain/PodVerificationStatus.class
 com/courier/modules/company/infrastructure/NominatimGeocodingService.class
 com/courier/modules/customerportal/api/CustomerPortalRatesController$CompareRequest.class
+com/courier/modules/kyc/domain/KycChannel.class
 com/courier/modules/customerbilling/api/CustomerBillingDtos$CustomerInfoResponse.class
 com/courier/modules/master/api/dto/ServiceTypeResponse.class
 com/courier/modules/company/api/dto/CompanySettingsResponse$Shipment.class
@@ -1426,6 +1450,7 @@ com/courier/modules/crossing/api/dto/OutScanRequest.class
 com/courier/modules/shipment/domain/CompanyShipmentSequence.class
 com/courier/modules/customerportal/rates/infrastructure/CourierProvidersConfig.class
 com/courier/modules/pricing/api/dto/PricingRequest.class
+com/courier/modules/kyc/infrastructure/KycSubjectDirectoryAdapter.class
 com/courier/modules/finance/infrastructure/CompanyPaymentGatewayResolver.class
 com/courier/modules/customerportal/rates/application/ProviderCallLimiter.class
 com/courier/modules/platformintegration/application/PlatformSignInService.class
@@ -1435,6 +1460,7 @@ com/courier/modules/master/api/dto/WeightSlabResponse.class
 com/courier/modules/shipment/application/event/ShipmentDeliveryWalletListener.class
 com/courier/modules/master/infrastructure/MasterDistrictFreightCoverageDirectory.class
 com/courier/modules/master/domain/WeightSlab.class
+com/courier/modules/kyc/domain/KycSubjectType.class
 com/courier/modules/manifest/api/dto/UpdateVehicleRequest.class
 com/courier/modules/communication/api/dto/CommunicationDashboardResponse$FailureRow.class
 com/courier/modules/shipment/api/dto/PublicTrackEventResponse.class
@@ -1520,6 +1546,7 @@ com/courier/modules/company/domain/UserSpecifications$1.class
 com/courier/modules/shipment/application/event/ShipmentEvent$Booked.class
 com/courier/shared/domain/BaseEntity.class
 com/courier/modules/rate/application/RateCalculationResult.class
+com/courier/modules/kyc/package-info.class
 com/courier/modules/company/application/event/BranchEvent$BranchDeactivated.class
 com/courier/modules/communication/application/provider/ProviderSendException.class
 com/courier/modules/busdepot/api/BusDepotDtos$DepotResponse.class
@@ -1638,9 +1665,11 @@ com/courier/modules/communication/domain/TemplateStatus.class
 com/courier/modules/crossing/application/HubDashboardStats.class
 com/courier/modules/pricing/domain/RoundingRule$4.class
 com/courier/modules/master/domain/ServiceType.class
+com/courier/modules/kyc/domain/KycProfileRepository.class
 com/courier/shared/exception/ForbiddenException.class
 com/courier/modules/master/application/command/VehicleTypeCommand.class
 com/courier/modules/customer/domain/CustomerRepository.class
+com/courier/modules/kyc/infrastructure/KycSubjectDirectoryAdapter$1.class
 com/courier/modules/distance/application/AddressDistanceService.class
 com/courier/modules/company/application/command/UpdateRoleCommand.class
 com/courier/modules/crossing/domain/ShipmentException$ShipmentExceptionBuilder.class
@@ -1656,6 +1685,7 @@ com/courier/modules/support/domain/Ticket.class
 com/courier/modules/communication/application/provider/ProviderSendResult.class
 com/courier/modules/manifest/application/command/UpdateVehicleCommand.class
 com/courier/modules/company/domain/User.class
+com/courier/modules/customerportal/api/CustomerPortalKycController.class
 com/courier/modules/master/api/MasterSortSupport.class
 com/courier/modules/company/domain/DimensionUnit.class
 com/courier/modules/communication/application/CommunicationSendServiceImpl.class
@@ -1751,18 +1781,21 @@ com/courier/modules/shipment/domain/ShipmentAsset.class
 com/courier/shared/exception/BusinessRuleException.class
 com/courier/modules/finance/api/TopupRequestMapper.class
 com/courier/modules/support/api/dto/NotificationResponse.class
+com/courier/modules/kyc/application/KycView$Slot.class
 com/courier/modules/charge/domain/ChargeSpecifications.class
 com/courier/modules/charge/domain/ChargeSetting$ChargeSettingBuilder.class
 com/courier/modules/company/application/command/UpdateBranchCommand.class
 com/courier/modules/shipment/api/dto/ShipmentResponse$EwayBillInfo.class
 com/courier/modules/master/application/PincodeBulkImportService$Range.class
 com/courier/modules/company/application/PermissionService$CreatePermissionCommand.class
+com/courier/modules/kyc/domain/KycStatus.class
 com/courier/modules/master/application/command/CityCommand.class
 com/courier/modules/company/api/CompanyMapper.class
 com/courier/modules/shipment/api/dto/EwayBillBookingRequest.class
 com/courier/modules/finance/application/payment/PaymentGatewayPort$GatewayOrder.class
 com/courier/modules/charge/application/ChargeSettingServiceImpl.class
 com/courier/modules/auth/api/dto/UserActivitySummaryResponse.class
+com/courier/modules/kyc/api/KycController.class
 com/courier/modules/customerportal/application/CustomerPortalSubCustomerService.class
 com/courier/modules/company/domain/PermissionRepository.class
 com/courier/modules/charge/application/ChargeService.class
@@ -1797,6 +1830,7 @@ com/courier/modules/customerportal/rates/domain/RateQuoteRepository.class
 com/courier/modules/finance/application/payment/PaymentGatewayPort$GatewayPayment.class
 com/courier/modules/master/domain/CountryRepository.class
 com/courier/modules/customerbilling/domain/CustomerInvoiceLine$CustomerInvoiceLineBuilder.class
+com/courier/modules/kyc/application/KycView.class
 com/courier/modules/master/domain/PackageTypeRepository.class
 com/courier/modules/company/domain/DepartmentRepository.class
 com/courier/modules/charge/domain/ChargeValueType.class
@@ -1856,6 +1890,7 @@ com/courier/modules/auth/domain/UserSessionRepository.class
 com/courier/modules/finance/application/command/DeliveryWeightCommissionCreditCommand.class
 com/courier/modules/customerpricing/domain/ZoneLocation.class
 com/courier/modules/districtfreight/application/DistrictLevelFreightServiceImpl.class
+com/courier/modules/communication/application/DirectMessageSender.class
 com/courier/modules/manifest/api/ManifestMapper.class
 com/courier/modules/communication/application/CommunicationTemplateService$StarterTemplate.class
 com/courier/modules/auth/domain/LoginHistory.class
@@ -1874,6 +1909,7 @@ com/courier/modules/support/api/dto/TicketSubCategoryResponse.class
 com/courier/modules/master/api/MasterDataBootstrapController.class
 com/courier/modules/support/domain/TicketRepository.class
 com/courier/modules/finance/application/event/WalletEvent$WalletCredited.class
+com/courier/modules/kyc/domain/KycDocument.class
 com/courier/modules/auth/infrastructure/LogOnlyNotificationSender$1.class
 com/courier/modules/support/domain/ShipmentSlaConfig.class
 com/courier/modules/master/application/PincodeBulkImportResult.class

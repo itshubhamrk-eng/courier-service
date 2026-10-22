@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.courier.modules.master.infrastructure.MasterUniquenessCheckerTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.595 s -- in com.courier.modules.master.infrastructure.MasterUniquenessCheckerTest

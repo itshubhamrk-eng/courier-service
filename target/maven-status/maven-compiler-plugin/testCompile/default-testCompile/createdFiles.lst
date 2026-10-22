@@ -78,6 +78,7 @@ com/courier/modules/master/domain/MasterDataEntityTest$Status.class
 com/courier/modules/master/infrastructure/MasterUniquenessCheckerTest.class
 com/courier/modules/subscription/domain/SubscriptionPlanTest$Quotas.class
 com/courier/modules/crossing/application/CrossingServiceImplTest.class
+com/courier/modules/kyc/application/KycAccessTest.class
 com/courier/modules/auth/application/PasswordServiceTest.class
 com/courier/modules/customerportal/integrations/application/CourierLogoServiceTest.class
 com/courier/modules/pricing/application/calculator/RoundOffCalculatorTest.class
@@ -110,6 +111,7 @@ com/courier/modules/pdp/application/PdpBillingCycleTest.class
 com/courier/shared/config/CustomerScopeFilterTest.class
 com/courier/modules/ewaybill/domain/EwayBillStatusTest.class
 com/courier/modules/company/application/BranchRoleProvisioningServiceTest.class
+com/courier/modules/kyc/application/KycServiceTest.class
 com/courier/modules/master/domain/MasterInvariantsTest$Routes.class
 com/courier/modules/manifest/application/ManifestServiceImplTest.class
 com/courier/modules/customerportal/rates/application/SameAddressRuleTest.class
@@ -124,6 +126,7 @@ com/courier/modules/customerportal/rates/application/PortalBookingServiceTest$1.
 com/courier/modules/communication/api/WhatsAppWebhookControllerTest.class
 com/courier/modules/pricing/application/calculator/FreightCalculatorTest.class
 com/courier/modules/communication/application/CommunicationOrchestratorTest.class
+com/courier/modules/kyc/application/KycServiceTest$1.class
 com/courier/modules/subscription/api/SubscriptionPlanMapperTest.class
 com/courier/modules/master/domain/MasterInvariantsTest.class
 com/courier/shared/security/JwtTokenProviderTest.class
