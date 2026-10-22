@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.courier.modules.communication.application.CommunicationOrchestratorTest
--------------------------------------------------------------------------------
-Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s -- in com.courier.modules.communication.application.CommunicationOrchestratorTest
