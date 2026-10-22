@@ -8,6 +8,14 @@ All notable changes to this project. Format based on
 
 ---
 
+## 2026-10-22 — Fix: "Login as company" token carried no permissions
+
+- `AuthService.impersonateCompany` resolved the impersonated admin's permissions while the SUPER_ADMIN's own company was bound,
+  so the company-filtered role-grant rows were invisible and the token had an empty `permissions` list: every permission-gated menu
+  item (Customers, Settings, ...) was hidden for the impersonated Company Admin. Now resolved inside the target company.
+  Regression test `AuthServiceTest.impersonationPermissionsAreResolvedInTheTargetCompany` (fails without the fix).
+  Normal sign-in and branch impersonation were never affected.
+
 ## 2026-10-21 — Courier integrations (per-company courier accounts)
 
 - V129 `courier_integrations`; `/api/v1/courier-integrations` (list, save, test, disconnect; COMPANY_ADMIN); secrets encrypted

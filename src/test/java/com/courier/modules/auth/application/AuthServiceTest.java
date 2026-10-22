@@ -532,6 +532,45 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("impersonation resolves the admin's permissions inside the target company, so the token carries them")
+    void impersonationPermissionsAreResolvedInTheTargetCompany() {
+        UUID superAdminId = UUID.randomUUID();
+        User admin = superAdmin(superAdminId);
+        signedInAsSuperAdmin(superAdminId);
+        when(userRepository.findByIdWithinCompany(superAdminId, PLATFORM_COMPANY)).thenReturn(Optional.of(admin));
+        when(passwordEncoder.matches("correct-password", admin.getPasswordHash())).thenReturn(true);
+
+        UUID targetCompanyId = UUID.randomUUID();
+        when(companyDirectory.findById(targetCompanyId)).thenReturn(Optional.of(
+                new CompanyDirectoryPort.CompanyRef(targetCompanyId, "TARGET", true, "Target Co", null)));
+        User companyAdmin = User.builder().email("admin@target.test").passwordHash("$2a$12$irrelevant")
+                .status(UserStatus.ACTIVE).roles(EnumSet.of(Role.COMPANY_ADMIN)).emailVerified(true).build();
+        UUID companyAdminId = UUID.randomUUID();
+        companyAdmin.setId(companyAdminId);
+        companyAdmin.setCompanyId(targetCompanyId);
+        when(userRepository.findByCompanyIdAndRoleAndStatus(targetCompanyId, Role.COMPANY_ADMIN, UserStatus.ACTIVE))
+                .thenReturn(List.of(companyAdmin));
+        when(tokenIssuer.effectiveRoles(companyAdmin)).thenReturn(Set.of("COMPANY_ADMIN"));
+
+        // Role grants are company-filtered rows: only a lookup made while the TARGET company is bound sees them.
+        java.util.concurrent.atomic.AtomicReference<UUID> boundDuringLookup = new java.util.concurrent.atomic.AtomicReference<>();
+        when(userPermissionsPort.resolveEffectivePermissions(eq(companyAdminId), anySet())).thenAnswer(i -> {
+            boundDuringLookup.set(CompanyContext.getCompanyId().orElse(null));
+            return Set.of("CUSTOMER_READ", "SETTINGS_READ");
+        });
+        when(jwtTokenProvider.generateImpersonationAccessToken(any(), any(), any(), anySet(), anySet(),
+                any(), any(), any(), any(), any(), any(), any())).thenReturn("impersonation-jwt");
+
+        authService.impersonateCompany(targetCompanyId, "correct-password", "10.0.0.1");
+
+        assertThat(boundDuringLookup.get()).isEqualTo(targetCompanyId);
+        org.mockito.ArgumentCaptor<Set<String>> permissions = org.mockito.ArgumentCaptor.forClass(Set.class);
+        verify(jwtTokenProvider).generateImpersonationAccessToken(any(), any(), any(), anySet(), permissions.capture(),
+                any(), any(), any(), any(), any(), any(), any());
+        assertThat(permissions.getValue()).containsExactlyInAnyOrder("CUSTOMER_READ", "SETTINGS_READ");
+    }
+
+    @Test
     @DisplayName("impersonation refuses a wrong step-up password without touching the target company")
     void impersonateRejectsWrongPassword() {
         UUID superAdminId = UUID.randomUUID();

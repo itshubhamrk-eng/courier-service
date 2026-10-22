@@ -376,9 +376,15 @@ public class AuthService {
         }
         User target = admins.get(0);
 
+        // Resolved inside the target company: role grants are company-filtered rows, and out here the bound
+        // company is the SUPER_ADMIN's own, so the lookup would find none and the token would carry no
+        // permissions (every permission-gated menu item hidden for the impersonated admin).
+        Set<String> targetRoles = tokenIssuer.effectiveRoles(target);
+        Set<String> targetPermissions = CompanyContext.runAs(targetCompanyId, () ->
+                userPermissionsPort.resolveEffectivePermissions(target.getId(), targetRoles));
+
         String accessToken = jwtTokenProvider.generateImpersonationAccessToken(
-                target.getId(), targetCompanyId, target.getEmail(), tokenIssuer.effectiveRoles(target),
-                userPermissionsPort.resolveEffectivePermissions(target.getId(), tokenIssuer.effectiveRoles(target)),
+                target.getId(), targetCompanyId, target.getEmail(), targetRoles, targetPermissions,
                 target.getBranchId(), target.getHubId(), company.name(), company.logo(),
                 superAdmin.getId(), superAdmin.getEmail(), IMPERSONATION_TTL);
 
