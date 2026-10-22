@@ -88,6 +88,11 @@ public class Customer extends CompanyOwnedEntity {
     @Column(name = "pan_number", length = 10)
     private String panNumber;
 
+    /** The customer that registered this one (from the customer portal); null for customers created by company staff. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.BINARY)
+    @Column(name = "parent_customer_id", columnDefinition = "BINARY(16)", updatable = false)
+    private java.util.UUID parentCustomerId;
+
     @Column(name = "website", length = 255)
     private String website;
 

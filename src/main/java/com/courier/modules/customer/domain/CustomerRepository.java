@@ -32,6 +32,10 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>,
     @Query("update Customer c set c.logoDataUrl = :logo where c.id = :id and c.companyId = :companyId")
     int setLogo(@Param("id") UUID id, @Param("companyId") UUID companyId, @Param("logo") String logo);
 
+    /** The customers a customer registered, newest first. */
+    @Query("select c from Customer c where c.companyId = :companyId and c.parentCustomerId = :parentId order by c.createdAt desc")
+    java.util.List<Customer> findChildren(@Param("companyId") UUID companyId, @Param("parentId") UUID parentId);
+
     /** Exact match, not the {@code search} LIKE — used to find-or-create a customer by the
      *  number typed at booking, so a repeat customer is reused rather than duplicated. */
     @Query("select c from Customer c where c.companyId = :companyId and c.mobile = :mobile")

@@ -2,6 +2,8 @@ package com.courier.modules.customerportal.api;
 
 import com.courier.modules.customerportal.api.CustomerPortalDtos.AddressRequest;
 import com.courier.modules.customerportal.api.CustomerPortalDtos.ProfileResponse;
+import com.courier.modules.customerportal.api.CustomerPortalDtos.SubCustomerRequest;
+import com.courier.modules.customerportal.api.CustomerPortalDtos.SubCustomerView;
 import com.courier.modules.customerportal.application.CustomerPortalAddressService;
 import com.courier.modules.customerportal.application.CustomerPortalAddressService.AddressView;
 import com.courier.modules.customerportal.application.CustomerPortalShipmentTracking;
@@ -45,6 +47,7 @@ public class CustomerPortalController {
     private final PincodeLookupService pincodeLookupService;
     private final CustomerPortalAddressService addressService;
     private final CustomerPortalShipmentTracking shipmentTracking;
+    private final com.courier.modules.customerportal.application.CustomerPortalSubCustomerService subCustomers;
     private final com.courier.modules.customerportal.integrations.application.CourierLogoService courierLogos;
 
     @GetMapping("/profile")
@@ -103,5 +106,67 @@ public class CustomerPortalController {
     @Operation(summary = "Status history of a shipment booked at an OCCPL counter (dashboard's recent shipments)")
     public ApiResponse<ShipmentTracking> shipmentTracking(@PathVariable UUID shipmentId) {
         return ApiResponse.success(shipmentTracking.track(shipmentId));
+    }
+
+    // ---------------------------------------------------------------- the customer's own customers
+
+    @GetMapping("/customers")
+    @Operation(summary = "The customers this customer registered")
+    public ApiResponse<List<SubCustomerView>> customers() {
+        return ApiResponse.success(subCustomers.list().stream().map(SubCustomerView::of).toList());
+    }
+
+    @PostMapping("/customers")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register a customer; it carries this customer as its parent",
+            description = "422 for an invalid or already-used mobile number.")
+    public ApiResponse<SubCustomerView> createCustomer(@Valid @RequestBody SubCustomerRequest request) {
+        return ApiResponse.success(SubCustomerView.of(subCustomers.create(request.toCommand())));
+    }
+
+    @GetMapping("/customers/{id}")
+    @Operation(summary = "One of this customer's own customers (404 for anyone else's)")
+    public ApiResponse<SubCustomerView> customer(@PathVariable UUID id) {
+        return ApiResponse.success(SubCustomerView.of(subCustomers.get(id)));
+    }
+
+    @PutMapping("/customers/{id}")
+    @Operation(summary = "Edit one of this customer's own customers", description = "Send `expectedVersion`; 409 when it changed meanwhile.")
+    public ApiResponse<SubCustomerView> updateCustomer(@PathVariable UUID id, @Valid @RequestBody SubCustomerRequest request) {
+        return ApiResponse.success(SubCustomerView.of(subCustomers.update(id, request.toCommand())));
+    }
+
+    @DeleteMapping("/customers/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Remove (deactivate) one of this customer's own customers")
+    public void removeCustomer(@PathVariable UUID id) {
+        subCustomers.remove(id);
+    }
+
+    @GetMapping("/customers/{id}/addresses")
+    @Operation(summary = "The addresses of one of this customer's own customers")
+    public ApiResponse<List<AddressView>> customerAddresses(@PathVariable UUID id) {
+        return ApiResponse.success(subCustomers.addresses(id));
+    }
+
+    @PostMapping("/customers/{id}/addresses")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add an address to one of this customer's own customers")
+    public ApiResponse<AddressView> addCustomerAddress(@PathVariable UUID id, @Valid @RequestBody AddressRequest request) {
+        return ApiResponse.success(subCustomers.addAddress(id, request.toCommand()));
+    }
+
+    @PutMapping("/customers/{id}/addresses/{addressId}")
+    @Operation(summary = "Edit an address of one of this customer's own customers")
+    public ApiResponse<AddressView> updateCustomerAddress(@PathVariable UUID id, @PathVariable UUID addressId,
+                                                          @Valid @RequestBody AddressRequest request) {
+        return ApiResponse.success(subCustomers.updateAddress(id, addressId, request.toCommand()));
+    }
+
+    @DeleteMapping("/customers/{id}/addresses/{addressId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Remove an address of one of this customer's own customers")
+    public void removeCustomerAddress(@PathVariable UUID id, @PathVariable UUID addressId) {
+        subCustomers.removeAddress(id, addressId);
     }
 }
