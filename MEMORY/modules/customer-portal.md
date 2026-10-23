@@ -178,7 +178,8 @@ Dashboard `pendingBookings` now counts the customer's PENDING/SUBMITTING/OUTCOME
 - `GET /customer-portal/bookings/{id}` - detail: parties and parcel from the quote snapshot, frozen charge lines,
   `labelDownloadable` (BOOKED and the provider has label hosts; OCCPL network never - labels are printed at the branch).
   The phase-4 `BookingView` is still the answer of `POST /shipments`.
-- `GET /customer-portal/bookings/{id}/tracking` - asked of the provider on every call, not stored
+- `GET /customer-portal/bookings/{id}/tracking` - asked of the provider on every call; the latest status is also saved
+  (see *Delivery status sync* below)
   (`CourierProviderAdapter.track`). Only BOOKED bookings call out. A tracking number issued later (OCCPL: when the branch
   books the parcel) is written back to the booking. OCCPL network: pickup steps from `pickup_requests` (looked up by
   pickup number for the signed-in customer) + the shipment's status history with branch names
@@ -203,6 +204,30 @@ instead of ids. Audited as `CUSTOMER_ADDRESS_CREATED/UPDATED` with `source=CUSTO
 
 Not verified against live providers: the tracking/label response fields above are as documented by Shiprocket and
 Delhivery and are read defensively; check them against the accounts' own responses before enabling.
+
+## Delivery status sync (V135)
+
+Booked portal shipments remember the courier's latest status (`portal_bookings.delivery_status` = `DeliveryStage`:
+AWAITING_PICKUP, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, RETURNED, CANCELLED; plus the courier's own text,
+location, time, `tracking_synced_at`, `next_tracking_sync_at`). `DeliveryStage.of` reads courier wording by keyword; the
+portal's `shipment-progress.ts` uses the same rules - keep them in step.
+- **Background sync**: `TrackingSyncJob` (every 2 min) -> `TrackingSyncService.syncDue`: bookings whose
+  `next_tracking_sync_at` has come, across companies (`findDueForTrackingSyncAcrossCompanies`, no company context), each
+  courier call inside `CompanyContext.runAs(booking's company)`. First check 10 min after booking, then every
+  `app.customer-portal.tracking-sync.interval` (1h). Finished (delivered, cancelled, return delivered) or older than 45 days
+  -> `next_tracking_sync_at = NULL`, never asked again. Batch 100 a run. `TRACKING_SYNC_ENABLED=false` stops it.
+- **Webhooks**: `POST /api/v1/webhooks/courier-tracking/{token}` (public). `courier_integrations.webhook_token` (48 hex,
+  SecureRandom) is created when an integration is saved or listed; the full address is `IntegrationView.webhookUrl`
+  (`TRACKING_WEBHOOK_BASE_URL`, else `APP_BASE_URL`) and is pasted into the courier's panel. No brand name in the path
+  (Shiprocket refuses URLs containing "shiprocket"). Unknown token -> 404; known -> always 200. The payload is read
+  leniently (Shiprocket `awb/current_status/current_timestamp/scans`, Delhivery `Shipment.AWB/Status.*`, lists), the
+  status saved at once and confirmed with the courier's API 30 s later by the job, so a garbled push does not stick.
+- Writes are JPQL bulk updates (`recordDelivery`, `recordSyncAttempt`, `syncSoon`) naming the company; `PortalBooking` is
+  `@DynamicUpdate` so an entity save elsewhere never writes back a stale status.
+- History: `GET /customer-portal/bookings?delivery=IN_TRANSIT,DELIVERED` (booked only; AWAITING_PICKUP also matches not yet
+  checked). Summary and detail carry `deliveryStatus {stage, text, location, at, checkedAt}` (null until known).
+- Not verified against live couriers: the webhook payload fields are as documented/commonly sent; unknown shapes only
+  lead to a confirming sync.
 
 ## Security review and deployment (phase 6)
 

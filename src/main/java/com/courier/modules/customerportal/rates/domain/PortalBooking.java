@@ -30,6 +30,9 @@ import java.util.UUID;
 @Table(name = "portal_bookings")
 @Filter(name = CompanyOwnedEntity.COMPANY_FILTER, condition = "company_id = :companyId")
 @SQLRestriction("deleted = false")
+// Only changed columns are written, so a booking saved for another reason (label link, tracking number) never writes back
+// a stale delivery status that the tracking sync updated in the meantime.
+@org.hibernate.annotations.DynamicUpdate
 public class PortalBooking extends CompanyOwnedEntity {
 
     public enum Status {
@@ -81,4 +84,15 @@ public class PortalBooking extends CompanyOwnedEntity {
     @Column(name = "failure_message", length = 500) private String failureMessage;
     @Column(name = "submitted_at") private Instant submittedAt;
     @Column(name = "booked_at") private Instant bookedAt;
+
+    /** The courier's latest delivery status (V135), kept by {@code TrackingSyncService}. */
+    @Column(name = "delivery_status", length = 30)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    private DeliveryStage deliveryStatus;
+    @Column(name = "delivery_status_text", length = 150) private String deliveryStatusText;
+    @Column(name = "delivery_location", length = 150) private String deliveryLocation;
+    @Column(name = "delivery_status_at") private Instant deliveryStatusAt;
+    @Column(name = "tracking_synced_at") private Instant trackingSyncedAt;
+    /** Due for the next sync; null once the shipment is finished (or was never booked). */
+    @Column(name = "next_tracking_sync_at") private Instant nextTrackingSyncAt;
 }

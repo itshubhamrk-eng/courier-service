@@ -50,11 +50,16 @@ public class CourierIntegrationService {
     private final ProviderCallLimiter limiter;
     private final AuditService auditService;
 
-    @Transactional(readOnly = true)
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+    @org.springframework.beans.factory.annotation.Value("${app.auth.app-base-url:http://localhost:3000}")
+    private String appBaseUrl = "http://localhost:3000";
+
+    @Transactional
     @PreAuthorize(COMPANY_ADMIN)
     public List<IntegrationView> list() {
         UUID companyId = CompanyContext.requireCompanyId();
-        return CourierCatalog.all().stream().map(p -> view(p, find(companyId, p.code()))).toList();
+        return CourierCatalog.all().stream().map(p -> view(p, find(companyId, p.code()).map(this::withWebhookToken))).toList();
     }
 
     /**
@@ -111,7 +116,7 @@ public class CourierIntegrationService {
             row.setLastTestOk(null);
             row.setLastTestMessage(null);
         }
-        CourierIntegration saved = repository.save(row);
+        CourierIntegration saved = repository.save(withWebhookToken(row));
         auditService.record(AuditAction.COURIER_INTEGRATION_SAVED, ENTITY, saved.getId(),
                 Map.of("provider", provider.code(), "enabled", enabled, "secretsChanged", rotated));
         return view(provider, Optional.of(saved));
@@ -190,6 +195,31 @@ public class CourierIntegrationService {
         }
     }
 
+    /** Gives a saved integration its webhook secret once (rows saved before V135 get it the next time they are listed). */
+    private CourierIntegration withWebhookToken(CourierIntegration row) {
+        if (row.getWebhookToken() == null && CourierCatalog.find(row.getProviderCode()).map(Provider::available).orElse(false)) {
+            byte[] bytes = new byte[24];
+            RANDOM.nextBytes(bytes);
+            row.setWebhookToken(java.util.HexFormat.of().formatHex(bytes));
+            if (row.getId() != null) {
+                return repository.save(row);
+            }
+        }
+        return row;
+    }
+
+    /** The address the courier calls with status updates; null until the integration has been saved. */
+    private String webhookUrl(CourierIntegration row) {
+        if (row == null || row.getWebhookToken() == null) {
+            return null;
+        }
+        String base = properties.getTrackingSync().getPublicBaseUrl();
+        if (base == null || base.isBlank()) {
+            base = appBaseUrl;
+        }
+        return base.replaceAll("/+$", "") + "/api/v1/webhooks/courier-tracking/" + row.getWebhookToken();
+    }
+
     /** The stored secrets, or none when they cannot be decrypted any more (the administrator must enter them again). */
     private Map<String, String> storedSecrets(CourierIntegration row) {
         if (row.getSecretsEncrypted() == null) {
@@ -241,7 +271,7 @@ public class CourierIntegrationService {
         CourierIntegration row = saved.orElse(null);
         return new IntegrationView(p.code(), p.name(), p.available(), p.note(), source, enabled, connected, unreadable, fields,
                 row == null ? null : row.getLastTestedAt(), row == null ? null : row.getLastTestOk(),
-                row == null ? null : row.getLastTestMessage(), row == null ? null : row.getLogoDataUrl());
+                row == null ? null : row.getLastTestMessage(), row == null ? null : row.getLogoDataUrl(), webhookUrl(row));
     }
 
     private boolean environmentConfigured(String code) {
@@ -267,7 +297,8 @@ public class CourierIntegrationService {
     /** {@code source}: COMPANY (saved by the administrator), ENVIRONMENT (the server's built-in settings) or NONE. */
     public record IntegrationView(String code, String name, boolean available, String note, String source, boolean enabled,
                                   boolean connected, boolean credentialsUnreadable, List<FieldView> fields,
-                                  Instant lastTestedAt, Boolean lastTestOk, String lastTestMessage, String logoDataUrl) {
+                                  Instant lastTestedAt, Boolean lastTestOk, String lastTestMessage, String logoDataUrl,
+                                  String webhookUrl) {
     }
 
     /** {@code value} is null for a secret; {@code set} says whether it has a value. */

@@ -52,6 +52,7 @@ class PortalShipmentServiceTest {
     private final PortalBookingStore store = mock(PortalBookingStore.class);
     private final ProviderCallLimiter limiter = mock(ProviderCallLimiter.class);
     private final LabelFetcher fetcher = mock(LabelFetcher.class);
+    private final TrackingSyncService trackingSync = mock(TrackingSyncService.class);
     private final AtomicInteger labelCalls = new AtomicInteger();
     private TrackingResult tracking = TrackingResult.unavailable("none");
     private LabelResult label = LabelResult.notAvailable("not yet");
@@ -81,7 +82,7 @@ class PortalShipmentServiceTest {
     };
 
     private PortalShipmentService service() {
-        return new PortalShipmentService(resolver, store, List.of(shiprocket, occpl), limiter, fetcher);
+        return new PortalShipmentService(resolver, store, List.of(shiprocket, occpl), limiter, fetcher, trackingSync);
     }
 
     private static PortalBooking booking(String provider, PortalBooking.Status status) {
@@ -162,6 +163,27 @@ class PortalShipmentServiceTest {
     }
 
     @Test
+    @DisplayName("history: a delivery filter means booked shipments; awaiting pickup also lets through unchecked ones")
+    void filtersByDelivery() {
+        ArgumentCaptor<PortalBookingStore.HistoryFilter> filter = ArgumentCaptor.forClass(PortalBookingStore.HistoryFilter.class);
+        when(store.page(eq(ACTING), filter.capture(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        service().list("FAILED", "in_transit,DELIVERED", null, null, null, 0, 20);
+        assertThat(filter.getValue().statuses()).containsExactly(PortalBooking.Status.BOOKED);
+        assertThat(filter.getValue().stages()).containsExactlyInAnyOrder(
+                com.courier.modules.customerportal.rates.domain.DeliveryStage.IN_TRANSIT,
+                com.courier.modules.customerportal.rates.domain.DeliveryStage.DELIVERED);
+        assertThat(filter.getValue().includeUnchecked()).isFalse();
+
+        service().list(null, "AWAITING_PICKUP", null, null, null, 0, 20);
+        assertThat(filter.getValue().includeUnchecked()).isTrue();
+
+        service().list(null, null, null, null, null, 0, 20);
+        assertThat(filter.getValue().stages()).isNull();
+        assertThatThrownBy(() -> service().list(null, "LOST", null, null, null, 0, 20)).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
     @DisplayName("couriers: the providers booked with, by display name")
     void couriers() {
         when(store.providerCodes(ACTING)).thenReturn(List.of("SHIPROCKET"));
@@ -225,6 +247,7 @@ class PortalShipmentServiceTest {
         assertThat(v.events()).hasSize(1);
         verify(limiter).check(ACTING.userId());
         verify(store).recordTrackingNumber(ACTING, b.getId(), "AWB9");
+        verify(trackingSync).record(eq(b.getId()), eq(ACTING.companyId()), eq(tracking), any());
     }
 
     @Test

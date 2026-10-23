@@ -36,6 +36,25 @@ public class CustomerPortalProperties {
 
     private Shiprocket shiprocket = new Shiprocket();
     private Delhivery delhivery = new Delhivery();
+    private TrackingSync trackingSync = new TrackingSync();
+
+    /** {@code app.customer-portal.tracking-sync.*}: keeping booked shipments' delivery status fresh (V135). */
+    @Getter
+    @Setter
+    public static class TrackingSync {
+        /** Off: the background job asks no courier (webhooks are still accepted). */
+        private boolean enabled = true;
+        /** Between checks of a shipment still on its way. */
+        private Duration interval = Duration.ofHours(1);
+        /** After a webhook: how soon the job confirms with the courier. */
+        private Duration afterWebhook = Duration.ofSeconds(30);
+        /** Bookings older than this are no longer checked, finished or not. */
+        private Duration maxAge = Duration.ofDays(45);
+        /** Most shipments one run asks about (each is one call to its courier). */
+        private int batchSize = 100;
+        /** The address couriers reach this server on, for the webhook URL shown to administrators. Blank = APP_BASE_URL. */
+        private String publicBaseUrl = "";
+    }
 
     @Getter
     @Setter
