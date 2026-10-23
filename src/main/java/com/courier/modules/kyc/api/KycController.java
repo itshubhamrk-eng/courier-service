@@ -29,7 +29,8 @@ import java.util.UUID;
 
 /**
  * Staff KYC. {@code me} is the signed-in user's own KYC; {@code branch} is the branch of the signed-in branch
- * manager. {@code subjects} is the company administrator's read-only view of everyone's KYC and documents.
+ * manager. {@code subjects} is the company administrator's view of everyone's KYC: documents to view or download, and
+ * approve or reject.
  */
 @RestController
 @RequestMapping("/api/v1/kyc")
@@ -98,6 +99,27 @@ public class KycController {
     public ResponseEntity<byte[]> subjectFile(@PathVariable KycSubjectType type, @PathVariable UUID subjectId,
                                               @PathVariable UUID documentId) {
         return KycEndpoints.file(service, access.asAdmin(type, subjectId), documentId);
+    }
+
+    @PostMapping("/subjects/{type}/{subjectId}/documents/{documentId}/approve")
+    @Operation(summary = "Approve a document — company administrator")
+    public ApiResponse<KycView> approve(@PathVariable KycSubjectType type, @PathVariable UUID subjectId,
+                                        @PathVariable UUID documentId) {
+        Target t = access.asAdmin(type, subjectId);
+        return ApiResponse.success(service.review(t.companyId(), type, subjectId, documentId, true, null, t.actorId()),
+                "Document approved");
+    }
+
+    @PostMapping("/subjects/{type}/{subjectId}/documents/{documentId}/reject")
+    @Operation(summary = "Reject a document with a reason the uploader sees — company administrator")
+    public ApiResponse<KycView> reject(@PathVariable KycSubjectType type, @PathVariable UUID subjectId,
+                                       @PathVariable UUID documentId, @RequestBody ReviewRequest body) {
+        Target t = access.asAdmin(type, subjectId);
+        return ApiResponse.success(service.review(t.companyId(), type, subjectId, documentId, false,
+                body == null ? null : body.reason(), t.actorId()), "Document rejected");
+    }
+
+    public record ReviewRequest(String reason) {
     }
 
     private Target target(String scope) {
