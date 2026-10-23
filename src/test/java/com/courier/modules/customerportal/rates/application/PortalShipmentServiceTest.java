@@ -116,7 +116,7 @@ class PortalShipmentServiceTest {
         when(store.page(eq(ACTING), any(), page.capture())).thenReturn(new PageImpl<>(
                 List.of(new PortalBookingStore.Row(b, quote(), option()))));
 
-        List<BookingSummary> rows = service().list(null, 0, 500).getContent();
+        List<BookingSummary> rows = service().list(null, null, null, null, 0, 500).getContent();
 
         assertThat(page.getValue().getPageSize()).isEqualTo(50);
         BookingSummary r = rows.get(0);
@@ -131,15 +131,40 @@ class PortalShipmentServiceTest {
 
     @Test
     @DisplayName("history: status filter narrows to one status; an unknown status is a 422")
-    @SuppressWarnings("unchecked")
     void filters() {
-        ArgumentCaptor<Collection<PortalBooking.Status>> statuses = ArgumentCaptor.forClass(Collection.class);
-        when(store.page(eq(ACTING), statuses.capture(), any())).thenReturn(new PageImpl<>(List.of()));
+        ArgumentCaptor<PortalBookingStore.HistoryFilter> filter = ArgumentCaptor.forClass(PortalBookingStore.HistoryFilter.class);
+        when(store.page(eq(ACTING), filter.capture(), any())).thenReturn(new PageImpl<>(List.of()));
 
-        service().list("booked", 0, 20);
+        service().list("booked", null, null, null, 0, 20);
 
-        assertThat(statuses.getValue()).containsExactly(PortalBooking.Status.BOOKED);
-        assertThatThrownBy(() -> service().list("SHIPPED", 0, 20)).isInstanceOf(BusinessRuleException.class);
+        assertThat(filter.getValue().statuses()).containsExactly(PortalBooking.Status.BOOKED);
+        assertThat(filter.getValue().providerCode()).isNull();
+        assertThatThrownBy(() -> service().list("SHIPPED", null, null, null, 0, 20)).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    @DisplayName("history: courier and India-time date range (both days inclusive); start after end is refused")
+    void filtersByCourierAndDates() {
+        ArgumentCaptor<PortalBookingStore.HistoryFilter> filter = ArgumentCaptor.forClass(PortalBookingStore.HistoryFilter.class);
+        when(store.page(eq(ACTING), filter.capture(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        service().list(null, " delhivery ", java.time.LocalDate.of(2026, 10, 1), java.time.LocalDate.of(2026, 10, 31), 0, 20);
+
+        PortalBookingStore.HistoryFilter f = filter.getValue();
+        assertThat(f.statuses()).hasSize(PortalBooking.Status.values().length);
+        assertThat(f.providerCode()).isEqualTo("DELHIVERY");
+        assertThat(f.from()).isEqualTo(java.time.Instant.parse("2026-09-30T18:30:00Z"));
+        assertThat(f.to()).isEqualTo(java.time.Instant.parse("2026-10-31T18:30:00Z"));
+        assertThatThrownBy(() -> service().list(null, null, java.time.LocalDate.of(2026, 10, 2), java.time.LocalDate.of(2026, 10, 1), 0, 20))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    @DisplayName("couriers: the providers booked with, by display name")
+    void couriers() {
+        when(store.providerCodes(ACTING)).thenReturn(List.of("SHIPROCKET"));
+
+        assertThat(service().couriers()).extracting(PortalShipmentService.Courier::name).containsExactly("Shiprocket");
     }
 
     @Test

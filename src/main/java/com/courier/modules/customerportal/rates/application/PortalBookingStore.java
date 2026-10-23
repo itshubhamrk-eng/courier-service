@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -112,10 +113,11 @@ public class PortalBookingStore {
         return bookings.findOwned(id, acting.companyId(), acting.customerId());
     }
 
-    /** One page of the customer's bookings with the quote and the option each was booked from. */
+    /** One page of the customer's bookings matching {@code filter}, with the quote and the option each was booked from. */
     @Transactional(readOnly = true)
-    public Page<Row> page(ActingCustomer acting, Collection<PortalBooking.Status> statuses, Pageable pageable) {
-        Page<PortalBooking> page = bookings.findPage(acting.companyId(), acting.customerId(), statuses, pageable);
+    public Page<Row> page(ActingCustomer acting, HistoryFilter filter, Pageable pageable) {
+        Page<PortalBooking> page = bookings.findPage(acting.companyId(), acting.customerId(), filter.statuses(),
+                filter.providerCode() == null ? "" : filter.providerCode(), filter.from(), filter.to(), pageable);
         Set<UUID> quoteIds = page.stream().map(PortalBooking::getQuoteId).collect(Collectors.toSet());
         Set<UUID> optionIds = page.stream().map(PortalBooking::getQuoteOptionId).collect(Collectors.toSet());
         Map<UUID, RateQuote> quoteById = quoteIds.isEmpty() ? Map.of()
@@ -125,6 +127,15 @@ public class PortalBookingStore {
                 : options.findAllWithin(optionIds, acting.companyId()).stream()
                         .collect(Collectors.toMap(RateQuoteOption::getId, Function.identity()));
         return page.map(b -> new Row(b, quoteById.get(b.getQuoteId()), optionById.get(b.getQuoteOptionId())));
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> providerCodes(ActingCustomer acting) {
+        return bookings.findProviderCodes(acting.companyId(), acting.customerId());
+    }
+
+    /** History filter: these statuses, one provider (null for all), booked within [from, to). */
+    public record HistoryFilter(Collection<PortalBooking.Status> statuses, String providerCode, Instant from, Instant to) {
     }
 
     /** One of the customer's bookings with its quote and option; empty for anyone else's. */

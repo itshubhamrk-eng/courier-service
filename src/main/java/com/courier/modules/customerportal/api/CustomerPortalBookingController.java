@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -59,11 +62,22 @@ public class CustomerPortalBookingController {
 
     @GetMapping("/bookings")
     @Operation(summary = "The customer's bookings, newest first",
-            description = "`status`: PENDING, SUBMITTING, BOOKED, FAILED or OUTCOME_UNKNOWN; omit for all. `size` at most 50.")
-    public ApiResponse<PageResponse<BookingSummary>> bookings(@RequestParam(required = false) String status,
-                                                              @RequestParam(defaultValue = "0") int page,
-                                                              @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(PageResponse.from(shipments.list(status, page, size)));
+            description = "`status`: PENDING, SUBMITTING, BOOKED, FAILED or OUTCOME_UNKNOWN; `provider`: a provider code; "
+                    + "`from` / `to`: booking dates (yyyy-MM-dd, India time, inclusive). Omit any for all. `size` at most 50.")
+    public ApiResponse<PageResponse<BookingSummary>> bookings(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String provider,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(PageResponse.from(shipments.list(status, provider, from, to, page, size)));
+    }
+
+    @GetMapping("/bookings/couriers")
+    @Operation(summary = "The couriers this customer has booked with (for the history's courier filter)")
+    public ApiResponse<List<PortalShipmentService.Courier>> bookingCouriers() {
+        return ApiResponse.success(shipments.couriers());
     }
 
     @GetMapping("/bookings/{bookingId}")
