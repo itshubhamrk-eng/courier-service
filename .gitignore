@@ -1,0 +1,12 @@
+# Build output (Maven). Docker and CI build from source; nothing reads a committed target/.
+target/
+
+# IDE and OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local environment / secrets
+.env
+*.log

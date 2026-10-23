@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.courier.modules.communication.application.WhatsAppReceiptServiceImplTest
--------------------------------------------------------------------------------
-Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.371 s -- in com.courier.modules.communication.application.WhatsAppReceiptServiceImplTest

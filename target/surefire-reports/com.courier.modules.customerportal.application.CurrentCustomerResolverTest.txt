@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.courier.modules.customerportal.application.CurrentCustomerResolverTest
--------------------------------------------------------------------------------
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.157 s -- in com.courier.modules.customerportal.application.CurrentCustomerResolverTest

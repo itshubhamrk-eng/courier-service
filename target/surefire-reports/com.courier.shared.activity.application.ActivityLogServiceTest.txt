@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.courier.shared.activity.application.ActivityLogServiceTest
--------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.193 s -- in com.courier.shared.activity.application.ActivityLogServiceTest
