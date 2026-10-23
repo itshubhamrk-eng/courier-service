@@ -10,6 +10,7 @@ import com.courier.modules.kyc.domain.KycOtp;
 import com.courier.modules.kyc.domain.KycOtpRepository;
 import com.courier.modules.kyc.domain.KycProfile;
 import com.courier.modules.kyc.domain.KycProfileRepository;
+import com.courier.modules.kyc.domain.KycReviewStatus;
 import com.courier.modules.kyc.domain.KycStatus;
 import com.courier.modules.kyc.domain.KycSubjectType;
 import com.courier.shared.audit.application.AuditService;
@@ -37,9 +38,10 @@ import java.util.UUID;
  * KYC of one subject (user, branch or business customer). Every method takes the subject explicitly; who may act
  * for which subject is decided by {@code KycAccess} before calling here. A profile is created on first visit.
  *
- * <p>Complete (auto-approved) when every required document is uploaded and the subject's current e-mail and mobile
- * are both verified; changing either on the subject's record, or removing a required document, makes it pending
- * again. One-time codes: 6 digits, BCrypt-hashed, valid 10 minutes, 5 tries, at most one a minute and five an hour.
+ * <p>Every upload waits for the company administrator, who approves or rejects it (with a reason the uploader sees).
+ * Complete when every required document is approved and the subject's current e-mail and mobile are both verified;
+ * UNDER_REVIEW when all of that is done but some documents still wait for review. Changing the e-mail or mobile on
+ * the record, re-uploading, or a rejection takes it back. One-time codes: 6 digits, BCrypt-hashed, valid 10 minutes, 5 tries, at most one a minute and five an hour.
  */
 @Slf4j
 @Service
@@ -85,8 +87,10 @@ public class KycService {
                 continue;
             }
             KycView v = view(s.get(), p);
+            int awaiting = (int) v.documents().stream()
+                    .filter(d -> d.uploaded() != null && d.uploaded().reviewStatus() == KycReviewStatus.PENDING_REVIEW).count();
             out.add(new KycSummary(type, p.getSubjectId(), s.get().name(), v.status(), v.emailVerified(), v.mobileVerified(),
-                    v.requiredUploaded(), v.requiredTotal(), p.getUpdatedAt(), p.getCompletedAt()));
+                    v.requiredUploaded(), v.requiredApproved(), v.requiredTotal(), awaiting, p.getUpdatedAt(), p.getCompletedAt()));
         }
         return out;
     }
@@ -145,6 +149,35 @@ public class KycService {
         documents.flush();
         auditService.record(AuditAction.KYC_UPDATED, ENTITY, profile.getId(),
                 Map.of("subjectType", type.name(), "document", d.getDocumentType(), "action", "REMOVED"));
+        return view(subject, refresh(profile, subject));
+    }
+
+    /**
+     * The company administrator's decision on one document. Rejecting needs a reason (shown to the uploader, who
+     * uploads a new file); approving clears any earlier reason.
+     */
+    @Transactional
+    public KycView review(UUID companyId, KycSubjectType type, UUID subjectId, UUID documentId, boolean approve,
+                          String reason, UUID reviewerId) {
+        KycSubject subject = subject(companyId, type, subjectId);
+        KycProfile profile = profile(companyId, subject);
+        KycDocument d = documents.findById(documentId)
+                .filter(x -> x.getCompanyId().equals(companyId) && x.getProfileId().equals(profile.getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("KycDocument", documentId));
+        String note = reason == null ? "" : reason.trim();
+        if (!approve && note.isEmpty()) {
+            throw new BusinessRuleException("Give a reason for rejecting the document; the uploader will see it.");
+        }
+        if (note.length() > 500) {
+            throw new BusinessRuleException("Keep the reason under 500 characters.");
+        }
+        d.setReviewStatus(approve ? KycReviewStatus.APPROVED : KycReviewStatus.REJECTED);
+        d.setReviewNote(approve ? null : note);
+        d.setReviewedBy(reviewerId);
+        d.setReviewedAt(Instant.now());
+        documents.save(d);
+        auditService.record(AuditAction.KYC_UPDATED, ENTITY, profile.getId(), Map.of("subjectType", type.name(),
+                "document", d.getDocumentType(), "action", approve ? "APPROVED" : "REJECTED"));
         return view(subject, refresh(profile, subject));
     }
 
@@ -249,8 +282,9 @@ public class KycService {
     /** Recomputes the status from the documents and verifications; saves only when it changed. */
     private KycProfile refresh(KycProfile p, KycSubject subject) {
         KycView v = view(subject, p);
-        KycStatus status = v.requiredUploaded() == v.requiredTotal() && v.emailVerified() && v.mobileVerified()
-                ? KycStatus.COMPLETE : KycStatus.PENDING;
+        boolean contactDone = v.emailVerified() && v.mobileVerified();
+        KycStatus status = !contactDone || v.requiredUploaded() < v.requiredTotal() ? KycStatus.PENDING
+                : v.requiredApproved() == v.requiredTotal() ? KycStatus.COMPLETE : KycStatus.UNDER_REVIEW;
         if (status != p.getStatus()) {
             p.setStatus(status);
             p.setCompletedAt(status == KycStatus.COMPLETE ? Instant.now() : null);
@@ -266,23 +300,27 @@ public class KycService {
         List<KycView.Slot> slots = new ArrayList<>();
         int required = 0;
         int uploaded = 0;
+        int approved = 0;
         for (DocumentSpec spec : KycDocumentCatalog.of(subject.type())) {
             Optional<KycDocument> d = docs.stream().filter(x -> x.getDocumentType().equals(spec.code())).findFirst();
             if (spec.required()) {
                 required++;
-                if (d.isPresent()) {
+                if (d.isPresent() && d.get().getReviewStatus() != KycReviewStatus.REJECTED) {
                     uploaded++;
+                }
+                if (d.isPresent() && d.get().getReviewStatus() == KycReviewStatus.APPROVED) {
+                    approved++;
                 }
             }
             slots.add(new KycView.Slot(spec.code(), spec.label(), spec.hint(), spec.required(),
                     d.map(x -> new KycView.Uploaded(x.getId(), x.getFileName(), x.getContentType(), x.getSizeBytes(),
-                            x.getCreatedAt())).orElse(null)));
+                            x.getCreatedAt(), x.getReviewStatus(), x.getReviewNote(), x.getReviewedAt())).orElse(null)));
         }
         String email = subject.email() == null ? null : subject.email().trim().toLowerCase();
         String mobile = subject.mobile() == null ? null : subject.mobile().trim();
         boolean emailOk = p.getEmailVerifiedAt() != null && email != null && Objects.equals(email, p.getEmail());
         boolean mobileOk = p.getMobileVerifiedAt() != null && mobile != null && Objects.equals(mobile, p.getMobile());
         return new KycView(subject.type(), subject.id(), subject.name(), p.getStatus(), email, emailOk, mobile, mobileOk,
-                uploaded, required, slots, p.getCompletedAt());
+                uploaded, approved, required, slots, p.getCompletedAt());
     }
 }

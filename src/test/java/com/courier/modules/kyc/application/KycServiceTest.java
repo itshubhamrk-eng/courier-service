@@ -9,6 +9,7 @@ import com.courier.modules.kyc.domain.KycOtp;
 import com.courier.modules.kyc.domain.KycOtpRepository;
 import com.courier.modules.kyc.domain.KycProfile;
 import com.courier.modules.kyc.domain.KycProfileRepository;
+import com.courier.modules.kyc.domain.KycReviewStatus;
 import com.courier.modules.kyc.domain.KycStatus;
 import com.courier.modules.kyc.domain.KycSubjectType;
 import com.courier.shared.audit.application.AuditService;
@@ -76,6 +77,7 @@ class KycServiceTest {
         when(documents.findOfType(any(), any(), anyString())).thenAnswer(i -> documentRows.values().stream()
                 .filter(d -> d.getProfileId().equals(i.getArgument(1)) && d.getDocumentType().equals(i.getArgument(2))).findFirst());
         when(documents.findById(any())).thenAnswer(i -> Optional.ofNullable(documentRows.get(i.<UUID>getArgument(0))));
+        when(documents.save(any())).thenAnswer(i -> i.getArgument(0));
         doAnswer(i -> documentRows.remove(i.<KycDocument>getArgument(0).getId())).when(documents).delete(any());
 
         KycDocumentFileRepository files = mock(KycDocumentFileRepository.class);
@@ -151,20 +153,61 @@ class KycServiceTest {
         assertThat(v.emailVerified()).isFalse();
     }
 
+    private void reviewAll(boolean approve) {
+        for (KycView.Slot slot : service.view(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER).documents()) {
+            if (slot.uploaded() != null) {
+                service.review(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER, slot.uploaded().id(), approve,
+                        approve ? null : "Blurred", UUID.randomUUID());
+            }
+        }
+    }
+
+    private KycView.Uploaded uploaded(KycView v, String code) {
+        return v.documents().stream().filter(s -> s.code().equals(code)).findFirst().orElseThrow().uploaded();
+    }
+
     @Test
-    @DisplayName("complete (auto-approved) only when every required document is uploaded and e-mail and mobile are verified")
+    @DisplayName("everything uploaded and verified waits for review; complete only once every required document is approved")
     void completion() {
         uploadAllRequired();
-        assertThat(service.view(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER).status()).isEqualTo(KycStatus.PENDING);
         verify(KycChannel.EMAIL);
         verify(KycChannel.MOBILE);
-        KycView v = service.view(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER);
-        assertThat(v.status()).isEqualTo(KycStatus.COMPLETE);
-        assertThat(v.completedAt()).isNotNull();
+        KycView waiting = service.view(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER);
+        assertThat(waiting.status()).isEqualTo(KycStatus.UNDER_REVIEW);
+        assertThat(uploaded(waiting, "GST_CERTIFICATE").reviewStatus()).isEqualTo(KycReviewStatus.PENDING_REVIEW);
+
+        reviewAll(true);
+        KycView done = service.view(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER);
+        assertThat(done.status()).isEqualTo(KycStatus.COMPLETE);
+        assertThat(done.requiredApproved()).isEqualTo(done.requiredTotal());
+        assertThat(done.completedAt()).isNotNull();
 
         // removing a required document makes it pending again
-        UUID gst = v.documents().stream().filter(s -> s.code().equals("GST_CERTIFICATE")).findFirst().orElseThrow().uploaded().id();
+        UUID gst = uploaded(done, "GST_CERTIFICATE").id();
         assertThat(service.removeDocument(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER, gst).status()).isEqualTo(KycStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("a rejected document needs a reason, counts as missing, shows the reason, and a new upload goes back to review")
+    void rejection() {
+        uploadAllRequired();
+        verify(KycChannel.EMAIL);
+        verify(KycChannel.MOBILE);
+        reviewAll(true);
+        UUID pan = uploaded(service.view(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER), "COMPANY_PAN").id();
+
+        assertThatThrownBy(() -> service.review(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER, pan, false, "  ", UUID.randomUUID()))
+                .isInstanceOf(BusinessRuleException.class).hasMessageContaining("reason");
+        KycView rejected = service.review(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER, pan, false, "Name not readable", UUID.randomUUID());
+        assertThat(rejected.status()).isEqualTo(KycStatus.PENDING);
+        assertThat(uploaded(rejected, "COMPANY_PAN").reviewStatus()).isEqualTo(KycReviewStatus.REJECTED);
+        assertThat(uploaded(rejected, "COMPANY_PAN").reviewNote()).isEqualTo("Name not readable");
+        assertThat(rejected.requiredUploaded()).isEqualTo(rejected.requiredTotal() - 1);
+
+        KycView reuploaded = service.upload(COMPANY, KycSubjectType.CUSTOMER, CUSTOMER, "COMPANY_PAN", "pan2.pdf", PDF, null);
+        assertThat(reuploaded.status()).isEqualTo(KycStatus.UNDER_REVIEW);
+        assertThat(uploaded(reuploaded, "COMPANY_PAN").reviewStatus()).isEqualTo(KycReviewStatus.PENDING_REVIEW);
+        assertThat(uploaded(reuploaded, "COMPANY_PAN").reviewNote()).isNull();
     }
 
     @Test

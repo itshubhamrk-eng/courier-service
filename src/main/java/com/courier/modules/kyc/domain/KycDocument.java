@@ -3,6 +3,8 @@ package com.courier.modules.kyc.domain;
 import com.courier.shared.domain.CompanyOwnedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -11,6 +13,7 @@ import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /** The current document of one type for a profile (metadata; the bytes are in {@link KycDocumentFile}). */
@@ -44,4 +47,18 @@ public class KycDocument extends CompanyOwnedEntity {
     @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "uploaded_by", columnDefinition = "BINARY(16)")
     private UUID uploadedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_status", nullable = false, length = 20)
+    private KycReviewStatus reviewStatus = KycReviewStatus.PENDING_REVIEW;
+
+    @Column(name = "review_note", length = 500)
+    private String reviewNote;
+
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "reviewed_by", columnDefinition = "BINARY(16)")
+    private UUID reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
 }
