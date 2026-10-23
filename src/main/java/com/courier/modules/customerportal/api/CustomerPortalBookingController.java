@@ -62,7 +62,7 @@ public class CustomerPortalBookingController {
 
     @GetMapping("/bookings")
     @Operation(summary = "The customer's bookings, newest first",
-            description = "`status`: PENDING, SUBMITTING, BOOKED, FAILED or OUTCOME_UNKNOWN; `provider`: a provider code; "
+            description = "`status`: PENDING, SUBMITTING, BOOKED, FAILED or OUTCOME_UNKNOWN (comma-separated for several); `provider`: a provider code; "
                     + "`from` / `to`: booking dates (yyyy-MM-dd, India time, inclusive). Omit any for all. `size` at most 50.")
     public ApiResponse<PageResponse<BookingSummary>> bookings(
             @RequestParam(required = false) String status,

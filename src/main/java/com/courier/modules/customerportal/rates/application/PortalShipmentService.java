@@ -63,7 +63,7 @@ public class PortalShipmentService {
     }
 
     /**
-     * Newest first. {@code status} is one booking status, {@code provider} one provider code (both null/blank for all);
+     * Newest first. {@code status} is one booking status or several comma-separated, {@code provider} one provider code (both null/blank for all);
      * {@code from} and {@code to} are booking dates in India time, both inclusive, either may be null.
      */
     public Page<BookingSummary> list(String status, String provider, LocalDate from, LocalDate to, int page, int size) {
@@ -195,11 +195,16 @@ public class PortalShipmentService {
         if (raw == null || raw.isBlank()) {
             return EnumSet.allOf(PortalBooking.Status.class);
         }
-        try {
-            return EnumSet.of(PortalBooking.Status.valueOf(raw.trim().toUpperCase(Locale.ROOT)));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessRuleException("Unknown booking status: " + raw);
+        Set<PortalBooking.Status> out = EnumSet.noneOf(PortalBooking.Status.class);
+        for (String one : raw.split(",")) {
+            if (one.isBlank()) continue;
+            try {
+                out.add(PortalBooking.Status.valueOf(one.trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                throw new BusinessRuleException("Unknown booking status: " + one.trim());
+            }
         }
+        return out.isEmpty() ? EnumSet.allOf(PortalBooking.Status.class) : out;
     }
 
     private static ShipmentRef ref(ActingCustomer acting, PortalBooking b) {

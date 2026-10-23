@@ -171,7 +171,7 @@ Dashboard `pendingBookings` now counts the customer's PENDING/SUBMITTING/OUTCOME
 ## After booking (phase 5)
 
 `PortalShipmentService` (own bookings only, 404 otherwise):
-- `GET /customer-portal/bookings?status=&provider=&from=&to=&page=&size=` - history, newest first, size <= 50; `from`/`to` are
+- `GET /customer-portal/bookings?status=&provider=&from=&to=&page=&size=` - history, newest first, size <= 50; `status` one or several comma-separated; `from`/`to` are
   booking dates (yyyy-MM-dd, India time, both inclusive); `provider` a provider code. `GET /customer-portal/bookings/couriers`
   lists the providers the customer has booked with (for the filter). Route, recipient, service,
   tracking number and amount from the booking + its frozen quote/option (`PortalBookingStore.page`, three queries a page).

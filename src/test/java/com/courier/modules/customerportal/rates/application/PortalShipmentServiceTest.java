@@ -139,6 +139,8 @@ class PortalShipmentServiceTest {
 
         assertThat(filter.getValue().statuses()).containsExactly(PortalBooking.Status.BOOKED);
         assertThat(filter.getValue().providerCode()).isNull();
+        service().list("pending,SUBMITTING", null, null, null, 0, 20);
+        assertThat(filter.getValue().statuses()).containsExactlyInAnyOrder(PortalBooking.Status.PENDING, PortalBooking.Status.SUBMITTING);
         assertThatThrownBy(() -> service().list("SHIPPED", null, null, null, 0, 20)).isInstanceOf(BusinessRuleException.class);
     }
 
