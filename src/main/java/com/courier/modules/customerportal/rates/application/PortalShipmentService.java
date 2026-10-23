@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +43,9 @@ import java.util.UUID;
 public class PortalShipmentService {
 
     static final int MAX_PAGE_SIZE = 50;
+    private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
+    /** Upper bound when no end date is given; far beyond any booking. */
+    private static final Instant END_OF_TIME = Instant.parse("9999-01-01T00:00:00Z");
 
     private final CurrentCustomerResolver resolver;
     private final PortalBookingStore store;
@@ -57,12 +62,28 @@ public class PortalShipmentService {
         this.labels = labels;
     }
 
-    /** Newest first. {@code status} is one booking status, or null/blank for all. */
-    public Page<BookingSummary> list(String status, int page, int size) {
+    /**
+     * Newest first. {@code status} is one booking status or several comma-separated, {@code provider} one provider code (both null/blank for all);
+     * {@code from} and {@code to} are booking dates in India time, both inclusive, either may be null.
+     */
+    public Page<BookingSummary> list(String status, String provider, LocalDate from, LocalDate to, int page, int size) {
         ActingCustomer acting = resolver.require();
-        Set<PortalBooking.Status> statuses = statuses(status);
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BusinessRuleException("The start date must be on or before the end date.");
+        }
+        String code = provider == null || provider.isBlank() ? null : provider.trim().toUpperCase(Locale.ROOT);
+        PortalBookingStore.HistoryFilter filter = new PortalBookingStore.HistoryFilter(statuses(status), code,
+                from == null ? Instant.EPOCH : from.atStartOfDay(INDIA).toInstant(),
+                to == null ? END_OF_TIME : to.plusDays(1).atStartOfDay(INDIA).toInstant());
         PageRequest request = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, MAX_PAGE_SIZE)));
-        return store.page(acting, statuses, request).map(this::summary);
+        return store.page(acting, filter, request).map(this::summary);
+    }
+
+    /** The couriers this customer has booked with, by name, for the history filter. */
+    public List<Courier> couriers() {
+        ActingCustomer acting = resolver.require();
+        return store.providerCodes(acting).stream().map(c -> new Courier(c, providerName(c)))
+                .sorted(java.util.Comparator.comparing(Courier::name, String.CASE_INSENSITIVE_ORDER)).toList();
     }
 
     public BookingDetail detail(UUID bookingId) {
@@ -174,11 +195,16 @@ public class PortalShipmentService {
         if (raw == null || raw.isBlank()) {
             return EnumSet.allOf(PortalBooking.Status.class);
         }
-        try {
-            return EnumSet.of(PortalBooking.Status.valueOf(raw.trim().toUpperCase(Locale.ROOT)));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessRuleException("Unknown booking status: " + raw);
+        Set<PortalBooking.Status> out = EnumSet.noneOf(PortalBooking.Status.class);
+        for (String one : raw.split(",")) {
+            if (one.isBlank()) continue;
+            try {
+                out.add(PortalBooking.Status.valueOf(one.trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                throw new BusinessRuleException("Unknown booking status: " + one.trim());
+            }
         }
+        return out.isEmpty() ? EnumSet.allOf(PortalBooking.Status.class) : out;
     }
 
     private static ShipmentRef ref(ActingCustomer acting, PortalBooking b) {
@@ -214,6 +240,9 @@ public class PortalShipmentService {
     }
 
     // ------------------------------------------------------------------ shapes
+
+    public record Courier(String code, String name) {
+    }
 
     /** One row of the history list. {@code bookingReference} is the provider's order or pickup number. */
     public record BookingSummary(UUID bookingId, String status, String providerCode, String providerName,
