@@ -15,4 +15,8 @@ public interface CourierIntegrationRepository extends JpaRepository<CourierInteg
 
     @Query("select i from CourierIntegration i where i.companyId = :companyId")
     List<CourierIntegration> findAllOfCompany(@Param("companyId") UUID companyId);
+
+    /** The integration a webhook address belongs to. Webhooks arrive with no company context: matched on the secret only. */
+    @Query("select i from CourierIntegration i where i.webhookToken = :token")
+    Optional<CourierIntegration> findByWebhookTokenAcrossCompanies(@Param("token") String token);
 }

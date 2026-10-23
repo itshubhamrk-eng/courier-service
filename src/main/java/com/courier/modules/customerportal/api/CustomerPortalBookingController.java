@@ -63,15 +63,18 @@ public class CustomerPortalBookingController {
     @GetMapping("/bookings")
     @Operation(summary = "The customer's bookings, newest first",
             description = "`status`: PENDING, SUBMITTING, BOOKED, FAILED or OUTCOME_UNKNOWN (comma-separated for several); `provider`: a provider code; "
-                    + "`from` / `to`: booking dates (yyyy-MM-dd, India time, inclusive). Omit any for all. `size` at most 50.")
+                    + "`from` / `to`: booking dates (yyyy-MM-dd, India time, inclusive); `delivery`: AWAITING_PICKUP, PICKED_UP, "
+                    + "IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, RETURNED or CANCELLED (comma-separated for several; booked "
+                    + "shipments only). Omit any for all. `size` at most 50.")
     public ApiResponse<PageResponse<BookingSummary>> bookings(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String delivery,
             @RequestParam(required = false) String provider,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(PageResponse.from(shipments.list(status, provider, from, to, page, size)));
+        return ApiResponse.success(PageResponse.from(shipments.list(status, delivery, provider, from, to, page, size)));
     }
 
     @GetMapping("/bookings/couriers")

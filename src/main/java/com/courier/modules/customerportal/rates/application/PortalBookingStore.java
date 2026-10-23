@@ -2,6 +2,7 @@ package com.courier.modules.customerportal.rates.application;
 
 import com.courier.modules.customerportal.application.ActingCustomer;
 import com.courier.modules.customerportal.rates.domain.BookingOutcome;
+import com.courier.modules.customerportal.rates.domain.DeliveryStage;
 import com.courier.modules.customerportal.rates.domain.PortalBooking;
 import com.courier.modules.customerportal.rates.domain.PortalBookingRepository;
 import com.courier.modules.customerportal.rates.domain.RateQuote;
@@ -35,6 +36,9 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class PortalBookingStore {
+
+    /** The background tracking sync first asks the courier this long after booking. */
+    static final java.time.Duration FIRST_TRACKING_SYNC_AFTER = java.time.Duration.ofMinutes(10);
 
     private final PortalBookingRepository bookings;
     private final RateQuoteRepository quotes;
@@ -87,6 +91,7 @@ public class PortalBookingStore {
             case BOOKED -> {
                 b.setStatus(PortalBooking.Status.BOOKED);
                 b.setBookedAt(now);
+                b.setNextTrackingSyncAt(now.plus(FIRST_TRACKING_SYNC_AFTER));
                 quotes.findOwned(b.getQuoteId(), acting.companyId(), acting.customerId()).ifPresent(q -> q.setStatus("BOOKED"));
             }
             case REJECTED -> {
@@ -116,8 +121,10 @@ public class PortalBookingStore {
     /** One page of the customer's bookings matching {@code filter}, with the quote and the option each was booked from. */
     @Transactional(readOnly = true)
     public Page<Row> page(ActingCustomer acting, HistoryFilter filter, Pageable pageable) {
+        boolean anyStage = filter.stages() == null;
         Page<PortalBooking> page = bookings.findPage(acting.companyId(), acting.customerId(), filter.statuses(),
-                filter.providerCode() == null ? "" : filter.providerCode(), filter.from(), filter.to(), pageable);
+                filter.providerCode() == null ? "" : filter.providerCode(), filter.from(), filter.to(), anyStage,
+                anyStage ? java.util.EnumSet.allOf(DeliveryStage.class) : filter.stages(), filter.includeUnchecked(), pageable);
         Set<UUID> quoteIds = page.stream().map(PortalBooking::getQuoteId).collect(Collectors.toSet());
         Set<UUID> optionIds = page.stream().map(PortalBooking::getQuoteOptionId).collect(Collectors.toSet());
         Map<UUID, RateQuote> quoteById = quoteIds.isEmpty() ? Map.of()
@@ -134,8 +141,16 @@ public class PortalBookingStore {
         return bookings.findProviderCodes(acting.companyId(), acting.customerId());
     }
 
-    /** History filter: these statuses, one provider (null for all), booked within [from, to). */
-    public record HistoryFilter(Collection<PortalBooking.Status> statuses, String providerCode, Instant from, Instant to) {
+    /**
+     * History filter: these statuses, one provider (null for all), booked within [from, to), these delivery stages (null
+     * for any) — {@code includeUnchecked} also lets through booked shipments whose delivery status is not known yet.
+     */
+    public record HistoryFilter(Collection<PortalBooking.Status> statuses, String providerCode, Instant from, Instant to,
+                                Collection<DeliveryStage> stages, boolean includeUnchecked) {
+
+        public HistoryFilter(Collection<PortalBooking.Status> statuses, String providerCode, Instant from, Instant to) {
+            this(statuses, providerCode, from, to, null, false);
+        }
     }
 
     /** One of the customer's bookings with its quote and option; empty for anyone else's. */

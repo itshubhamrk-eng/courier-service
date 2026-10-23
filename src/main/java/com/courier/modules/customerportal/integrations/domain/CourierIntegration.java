@@ -55,4 +55,8 @@ public class CourierIntegration extends CompanyOwnedEntity {
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(name = "logo_data_url", columnDefinition = "MEDIUMTEXT")
     private String logoDataUrl;
+
+    /** Secret part of this company's webhook address for this courier (V135); see {@code CourierTrackingWebhookController}. */
+    @Column(name = "webhook_token", length = 64)
+    private String webhookToken;
 }

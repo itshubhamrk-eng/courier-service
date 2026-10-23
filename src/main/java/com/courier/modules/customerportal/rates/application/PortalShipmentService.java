@@ -7,6 +7,7 @@ import com.courier.modules.customerportal.rates.application.RateComparisonServic
 import com.courier.modules.customerportal.rates.domain.BookingRequest;
 import com.courier.modules.customerportal.rates.domain.CourierProviderAdapter;
 import com.courier.modules.customerportal.rates.domain.LabelResult;
+import com.courier.modules.customerportal.rates.domain.DeliveryStage;
 import com.courier.modules.customerportal.rates.domain.PortalBooking;
 import com.courier.modules.customerportal.rates.domain.RateQuote;
 import com.courier.modules.customerportal.rates.domain.RateQuoteOption;
@@ -52,9 +53,12 @@ public class PortalShipmentService {
     private final List<CourierProviderAdapter> adapters;
     private final ProviderCallLimiter limiter;
     private final LabelFetcher labels;
+    private final TrackingSyncService trackingSync;
 
     public PortalShipmentService(CurrentCustomerResolver resolver, PortalBookingStore store,
-                                 List<CourierProviderAdapter> adapters, ProviderCallLimiter limiter, LabelFetcher labels) {
+                                 List<CourierProviderAdapter> adapters, ProviderCallLimiter limiter, LabelFetcher labels,
+                                 TrackingSyncService trackingSync) {
+        this.trackingSync = trackingSync;
         this.resolver = resolver;
         this.store = store;
         this.adapters = adapters;
@@ -67,14 +71,26 @@ public class PortalShipmentService {
      * {@code from} and {@code to} are booking dates in India time, both inclusive, either may be null.
      */
     public Page<BookingSummary> list(String status, String provider, LocalDate from, LocalDate to, int page, int size) {
+        return list(status, null, provider, from, to, page, size);
+    }
+
+    /**
+     * As {@link #list(String, String, LocalDate, LocalDate, int, int)}, also narrowed to delivery stages ({@code delivery}:
+     * one {@link DeliveryStage} or several comma-separated; AWAITING_PICKUP also matches booked shipments not yet checked).
+     * A delivery filter implies booked shipments.
+     */
+    public Page<BookingSummary> list(String status, String delivery, String provider, LocalDate from, LocalDate to, int page, int size) {
         ActingCustomer acting = resolver.require();
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessRuleException("The start date must be on or before the end date.");
         }
         String code = provider == null || provider.isBlank() ? null : provider.trim().toUpperCase(Locale.ROOT);
-        PortalBookingStore.HistoryFilter filter = new PortalBookingStore.HistoryFilter(statuses(status), code,
+        Set<DeliveryStage> stages = stages(delivery);
+        Set<PortalBooking.Status> statuses = stages == null ? statuses(status) : EnumSet.of(PortalBooking.Status.BOOKED);
+        PortalBookingStore.HistoryFilter filter = new PortalBookingStore.HistoryFilter(statuses, code,
                 from == null ? Instant.EPOCH : from.atStartOfDay(INDIA).toInstant(),
-                to == null ? END_OF_TIME : to.plusDays(1).atStartOfDay(INDIA).toInstant());
+                to == null ? END_OF_TIME : to.plusDays(1).atStartOfDay(INDIA).toInstant(),
+                stages, stages != null && stages.contains(DeliveryStage.AWAITING_PICKUP));
         PageRequest request = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, MAX_PAGE_SIZE)));
         return store.page(acting, filter, request).map(this::summary);
     }
@@ -111,6 +127,11 @@ public class PortalShipmentService {
         }
         if (result.trackingNumber() != null && b.getAwbNumber() == null) {
             store.recordTrackingNumber(acting, b.getId(), result.trackingNumber());
+        }
+        try {
+            trackingSync.record(b.getId(), acting.companyId(), result, Instant.now());
+        } catch (RuntimeException e) {
+            log.warn("Saving the delivery status of booking {} failed: {}", b.getId(), e.getClass().getSimpleName());
         }
         return new TrackingView(b.getId(), adapter.displayName(),
                 result.trackingNumber() != null ? result.trackingNumber() : b.getAwbNumber(), result.available(),
@@ -167,7 +188,12 @@ public class PortalShipmentService {
                 o == null ? null : o.getServiceName(), o == null ? null : o.getTransportMode(), b.getProviderOrderRef(),
                 b.getAwbNumber(), pickup.city(), pickup.pincode(), delivery.name(), delivery.city(), delivery.pincode(),
                 row.quote() == null ? null : row.quote().getPackageCount(), b.getTotalAmount(), b.getCurrency(),
-                b.getCreatedAt(), b.getBookedAt());
+                b.getCreatedAt(), b.getBookedAt(), delivery(b));
+    }
+
+    private static Delivery delivery(PortalBooking b) {
+        return b.getDeliveryStatus() == null ? null : new Delivery(b.getDeliveryStatus().name(), b.getDeliveryStatusText(),
+                b.getDeliveryLocation(), b.getDeliveryStatusAt(), b.getTrackingSyncedAt());
     }
 
     private BookingDetail detail(Row row) {
@@ -188,7 +214,7 @@ public class PortalShipmentService {
                 b.getFailureMessage(),
                 BookingRequest.Party.of(snapshot.get("pickup")), BookingRequest.Party.of(snapshot.get("delivery")), parcel,
                 o == null ? List.of() : RateComparisonService.lines(o), b.getTotalAmount(), b.getCurrency(),
-                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt());
+                b.getSubmittedAt(), b.getBookedAt(), b.getCreatedAt(), delivery(b));
     }
 
     private static Set<PortalBooking.Status> statuses(String raw) {
@@ -205,6 +231,22 @@ public class PortalShipmentService {
             }
         }
         return out.isEmpty() ? EnumSet.allOf(PortalBooking.Status.class) : out;
+    }
+
+    private static Set<DeliveryStage> stages(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        Set<DeliveryStage> out = EnumSet.noneOf(DeliveryStage.class);
+        for (String one : raw.split(",")) {
+            if (one.isBlank()) continue;
+            try {
+                out.add(DeliveryStage.valueOf(one.trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                throw new BusinessRuleException("Unknown delivery status: " + one.trim());
+            }
+        }
+        return out.isEmpty() ? null : out;
     }
 
     private static ShipmentRef ref(ActingCustomer acting, PortalBooking b) {
@@ -249,7 +291,14 @@ public class PortalShipmentService {
                                  String serviceName, String transportMode, String bookingReference, String trackingNumber,
                                  String pickupCity, String pickupPincode, String deliveryName, String deliveryCity,
                                  String deliveryPincode, Integer packageCount, BigDecimal totalAmount, String currency,
-                                 Instant createdAt, Instant bookedAt) {
+                                 Instant createdAt, Instant bookedAt, Delivery deliveryStatus) {
+    }
+
+    /**
+     * The courier's latest delivery status as last saved (null until first known): {@code stage} is one of
+     * {@link DeliveryStage}, {@code text} the courier's own words, {@code checkedAt} when it was last asked.
+     */
+    public record Delivery(String stage, String text, String location, Instant at, Instant checkedAt) {
     }
 
     /** One booking as it was quoted and booked; the amounts are the frozen quote's. */
@@ -258,7 +307,7 @@ public class PortalShipmentService {
                                 String bookingReference, String trackingNumber, boolean labelDownloadable, String message,
                                 BookingRequest.Party pickup, BookingRequest.Party delivery, Parcel parcel,
                                 List<BreakdownLine> charges, BigDecimal totalAmount, String currency,
-                                Instant submittedAt, Instant bookedAt, Instant createdAt) {
+                                Instant submittedAt, Instant bookedAt, Instant createdAt, Delivery deliveryStatus) {
     }
 
     public record Parcel(BigDecimal actualWeightKg, BigDecimal volumetricWeightKg, BigDecimal chargeableWeightKg,

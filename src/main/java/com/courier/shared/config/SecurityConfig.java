@@ -68,6 +68,8 @@ public class SecurityConfig {
             "/api/v1/webhooks/whatsapp",        // Meta's delivery receipts; no bearer token — authenticity is a
                                                  // whole-body HMAC (POST) / verify token (GET), see
                                                  // WhatsAppWebhookController
+            "/api/v1/webhooks/courier-tracking/**", // couriers' status pushes; no bearer token — a per-company secret in
+                                                 // the address, see CourierTrackingWebhookController
             "/actuator/health/**",
             "/actuator/info",
             "/v3/api-docs/**",

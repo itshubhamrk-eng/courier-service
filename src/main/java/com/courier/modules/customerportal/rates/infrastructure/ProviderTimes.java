@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Locale;
 
 /** Reads the timestamps courier APIs send. Times without an offset are Indian time. Unreadable -> null. */
-final class ProviderTimes {
+public final class ProviderTimes {
 
     static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
 
@@ -24,7 +24,7 @@ final class ProviderTimes {
     private ProviderTimes() {
     }
 
-    static Instant parse(String raw) {
+    public static Instant parse(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }

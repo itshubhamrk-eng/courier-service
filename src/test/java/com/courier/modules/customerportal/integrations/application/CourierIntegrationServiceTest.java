@@ -101,6 +101,20 @@ class CourierIntegrationServiceTest {
     }
 
     @Test
+    @DisplayName("a saved courier gets its own secret webhook address, kept across saves; unsaved ones have none")
+    void webhookAddress() {
+        assertThat(find(service.list(), "SHIPROCKET").webhookUrl()).isNull();
+
+        IntegrationView v = service.save("SHIPROCKET", false, Map.of("email", "api@shop.test"));
+
+        assertThat(v.webhookUrl()).matches("http://localhost:3000/api/v1/webhooks/courier-tracking/[0-9a-f]{48}")
+                .doesNotContainIgnoringCase("shiprocket");
+        assertThat(service.save("SHIPROCKET", false, Map.of("email", "x@shop.test")).webhookUrl()).isEqualTo(v.webhookUrl());
+        assertThat(find(service.list(), "SHIPROCKET").webhookUrl()).isEqualTo(v.webhookUrl());
+        assertThat(service.save("DELHIVERY", false, Map.of()).webhookUrl()).isNotEqualTo(v.webhookUrl());
+    }
+
+    @Test
     @DisplayName("a blank secret keeps the stored one; a typed one replaces it")
     void blankKeepsSecret() {
         service.save("DELHIVERY", true, Map.of("token", "tok-1", "pickupLocation", "PUNE-1"));

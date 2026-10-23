@@ -144,6 +144,13 @@ app:
       base-url: ${DELHIVERY_BASE_URL:https://track.delhivery.com}
       token: ${DELHIVERY_API_TOKEN:}
       pickup-location: ${DELHIVERY_PICKUP_LOCATION:}
+    # Booked shipments' delivery status: a background job asks each courier, and couriers may push updates to the
+    # webhook address shown in Courier Integrations. See MEMORY/modules/customer-portal.md.
+    tracking-sync:
+      enabled: ${TRACKING_SYNC_ENABLED:true}
+      interval: ${TRACKING_SYNC_INTERVAL:1h}
+      batch-size: ${TRACKING_SYNC_BATCH_SIZE:100}
+      public-base-url: ${TRACKING_WEBHOOK_BASE_URL:}
   bootstrap:
     # First start only: creates a SUPER_ADMIN when this email is not yet a platform operator. Set both, start once,
     # then remove them. The password must satisfy the normal password policy. No default on purpose.
